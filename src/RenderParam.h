@@ -7,7 +7,8 @@
 #include <d3d11.h>
 #include "source/MediaSource.h"
 #include "decode/VideoDecoder.h"
-#include "VideoQuad.h"
+#include "render/VideoQuad.h"
+#include "render/SwapChainManager.h"
 
 #define DEFAULT_VIDEO_WIDTH 800
 #define DEFAULT_VIDEO_HEIGHT 600
@@ -33,8 +34,7 @@ private:
     std::unique_ptr<nv::VideoQuad> vq = nullptr;
     ID3D11Device *device;
     ID3D11DeviceContext *deviceCtx;
-    IDXGISwapChain *mySwap;
-    ID3D11RenderTargetView *m_d3dRenderTargetView;
+    SwapChainManager swapChainMgr;
     int frameCount = 0;
     int presentCount = 0;
     std::chrono::steady_clock::time_point m_startTime;

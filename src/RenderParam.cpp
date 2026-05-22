@@ -15,17 +15,10 @@ uint32_t RenderParam::Init(int width, int height, ID3D11Device *device, ID3D11De
 {
     this->device = device;
     this->deviceCtx = deviceCtx;
-    this->mySwap = swapChain;
     this->viewWidth = width;
     this->viewHeight = height;
 
-    ID3D11Texture2D *myBack;
-    mySwap->GetBuffer(0, __uuidof(ID3D11Texture2D), (void **)&myBack);
-
-    CD3D11_RENDER_TARGET_VIEW_DESC renderTargetViewDesc(D3D11_RTV_DIMENSION_TEXTURE2D, DXGI_FORMAT_B8G8R8A8_UNORM);
-    device->CreateRenderTargetView(myBack, &renderTargetViewDesc, &this->m_d3dRenderTargetView);
-    myBack->Release();
-
+    swapChainMgr.Init(device, deviceCtx, swapChain, width, height);
     this->vq = std::make_unique<nv::VideoQuad>(device, deviceCtx, this->videoWidth, this->videoHeight);
 
     return 0;
@@ -64,26 +57,9 @@ uint32_t RenderParam::resize(AVFrame *frame)
 
 uint32_t RenderParam::resizeSwapChain(int width, int height)
 {
-    auto &mySwap = this->mySwap;
-    auto &myDevice = this->device;
-
     this->viewWidth = width;
     this->viewHeight = height;
-
-    this->m_d3dRenderTargetView->Release();
-    auto ppRenderTarget = &this->m_d3dRenderTargetView;
-
-    DXGI_SWAP_CHAIN_DESC SwapChainDesc;
-    mySwap->GetDesc(&SwapChainDesc);
-    mySwap->ResizeBuffers(SwapChainDesc.BufferCount, width, height, SwapChainDesc.BufferDesc.Format, SwapChainDesc.Flags);
-
-    ID3D11Texture2D *myBack;
-    mySwap->GetBuffer(0, __uuidof(ID3D11Texture2D), (void **)&myBack);
-
-    CD3D11_RENDER_TARGET_VIEW_DESC renderTargetViewDesc(D3D11_RTV_DIMENSION_TEXTURE2D, SwapChainDesc.BufferDesc.Format);
-    myDevice->CreateRenderTargetView(myBack, &renderTargetViewDesc, ppRenderTarget);
-    myBack->Release();
-
+    swapChainMgr.Resize(width, height);
     return 0;
 }
 
@@ -115,36 +91,18 @@ uint32_t RenderParam::update(AVFrame *frame)
 
 uint32_t RenderParam::draw(HWND hwnd)
 {
-    auto &myDeviceCtx = this->deviceCtx;
-
-    D3D11_VIEWPORT viewPort = {};
-    viewPort.TopLeftX = 0;
-    viewPort.TopLeftY = 0;
-    viewPort.Width = this->viewWidth;
-    viewPort.Height = this->viewHeight;
-    viewPort.MaxDepth = 1;
-    viewPort.MinDepth = 0;
-    myDeviceCtx->RSSetViewports(1, &viewPort);
-
-    myDeviceCtx->OMSetRenderTargets(1, &this->m_d3dRenderTargetView, nullptr);
-
-    const FLOAT black[] = {0, 0, 0, 1};
-    myDeviceCtx->ClearRenderTargetView(this->m_d3dRenderTargetView, black);
+    swapChainMgr.BeginFrame();
 
     this->vq->BeginDraw();
-
     RECT rect;
     GetClientRect(hwnd, &rect);
     double srcRatio = (double)this->videoWidth / this->videoHeight;
     double dstRatio = (double)rect.right / rect.bottom;
     this->vq->UpdateByRatio(srcRatio, dstRatio);
-
     this->vq->Draw();
 
-    this->mySwap->Present(1, 0);
-
+    swapChainMgr.EndFrame();
     ClipCursor(NULL);
-
     return 0;
 }
 
