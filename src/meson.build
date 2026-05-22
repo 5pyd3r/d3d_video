@@ -17,9 +17,17 @@ render_src = files(
     'render/SwapChainManager.cpp',
 )
 
+playback_src = files(
+    'playback/PlaybackController.cpp',
+    'playback/TextureUpdater.cpp',
+)
+
+app_src = files(
+    'app/Application.cpp',
+)
+
 d3d_video_src = files(
     'main.cpp',
-    'RenderParam.cpp',
 )
 
 fxc = find_program('fxc.exe', required: true)
@@ -56,6 +64,6 @@ pshader = custom_target(
 
 dbghelp = meson.get_compiler('cpp').find_library('dbghelp', required: true)
 
-executable('d3d_video', [d3d_video_src, platform_src, source_src, decode_src, render_src, vshader, pshader],
+executable('d3d_video', [d3d_video_src, platform_src, source_src, decode_src, render_src, playback_src, app_src, vshader, pshader],
     dependencies: [libavcodec, libavformat, libavutil, spdlog, dbghelp],
     win_subsystem: 'windows')
