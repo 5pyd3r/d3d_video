@@ -8,10 +8,13 @@ source_src = files(
     'source/MediaSource.cpp',
 )
 
+decode_src = files(
+    'decode/VideoDecoder.cpp',
+)
+
 d3d_video_src = files(
     'main.cpp',
     'VideoQuad.cpp',
-    'VideoCtx.cpp',
     'RenderParam.cpp',
 )
 
@@ -49,6 +52,6 @@ pshader = custom_target(
 
 dbghelp = meson.get_compiler('cpp').find_library('dbghelp', required: true)
 
-executable('d3d_video', [d3d_video_src, platform_src, source_src, vshader, pshader],
+executable('d3d_video', [d3d_video_src, platform_src, source_src, decode_src, vshader, pshader],
     dependencies: [libavcodec, libavformat, libavutil, spdlog, dbghelp],
     win_subsystem: 'windows')

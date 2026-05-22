@@ -1,4 +1,10 @@
 #include "RenderParam.h"
+#include "platform/Logger.h"
+
+extern "C" {
+#include <libavcodec/avcodec.h>
+#include <libavformat/avformat.h>
+}
 
 RenderParam::RenderParam()
 {
@@ -25,24 +31,23 @@ uint32_t RenderParam::Init(int width, int height, ID3D11Device *device, ID3D11De
     return 0;
 }
 
-uint32_t RenderParam::InitVideoCtx(const char *filePath)
-{
-    uint32_t ret = this->ctx.Reinit(filePath, this->frame_duration);
-    if (ret != 0)
-    {
-        return ret;
-    }
+uint32_t RenderParam::InitVideoCtx(const char *filePath) {
+    uint32_t ret = source.Open(filePath);
+    if (ret != 0) return ret;
+
+    ret = decoder.Init(source.GetFormatContext(), this->frame_duration);
+    if (ret != 0) return ret;
 
     this->frameCount = 0;
     this->presentCount = 0;
     this->playStatus = 0;
     this->m_startTime = std::chrono::steady_clock::now();
-
     return 0;
 }
 
-RenderParam::~RenderParam()
-{
+RenderParam::~RenderParam() {
+    decoder.Close();
+    source.Close();
 }
 
 uint32_t RenderParam::resize(AVFrame *frame)
@@ -159,25 +164,23 @@ uint32_t RenderParam::render(HWND hwnd)
     }
     else
     {
-        for (;;)
-        {
-            auto mediaFrame = this->ctx.nextFrame();
-
-            if (mediaFrame.type == AVMediaType::AVMEDIA_TYPE_VIDEO)
-            {
-                av_frame_free(&frame);    // 假设 frame 是 AVFrame* 成员
-                frame = mediaFrame.frame; // 存在内存管理风险
-                this->frameCount++;
-                break;
-            }
-            else if (mediaFrame.type == AVMediaType::AVMEDIA_TYPE_AUDIO)
-            {
-                av_frame_free(&mediaFrame.frame);
-            }
-            else if (mediaFrame.frame == nullptr)
-            {
+        for (;;) {
+            AVPacket* packet = source.ReadPacket();
+            if (!packet) {
                 frame = nullptr;
                 break;
+            }
+
+            auto decoded = decoder.SendAndReceive(packet);
+            av_packet_free(&packet);
+
+            if (decoded.type == AVMEDIA_TYPE_VIDEO) {
+                av_frame_free(&frame);
+                frame = decoded.frame;
+                this->frameCount++;
+                break;
+            } else if (decoded.type == AVMEDIA_TYPE_AUDIO) {
+                av_frame_free(&decoded.frame);
             }
         }
 

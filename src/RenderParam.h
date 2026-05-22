@@ -5,7 +5,8 @@
 #include <chrono>
 #include <memory>
 #include <d3d11.h>
-#include "VideoCtx.h"
+#include "source/MediaSource.h"
+#include "decode/VideoDecoder.h"
 #include "VideoQuad.h"
 
 #define DEFAULT_VIDEO_WIDTH 800
@@ -39,7 +40,8 @@ private:
     std::chrono::steady_clock::time_point m_startTime;
     int playStatus = 2; // 0 play, 1 pause, 2 stop
     float currentSec;
-    VideoCtx ctx;
+    MediaSource source;
+    VideoDecoder decoder;
     double frame_duration;
 };
 

@@ -12,3 +12,11 @@ test('MediaSource',
         '../src/source/MediaSource.cpp',
         '../src/platform/Logger.cpp',
         dependencies: [gtest_dep, libavcodec, libavformat, libavutil, libswscale, spdlog]))
+
+test('VideoDecoder',
+    executable('test_video_decoder',
+        'decode/VideoDecoder_test.cpp',
+        '../src/source/MediaSource.cpp',
+        '../src/decode/VideoDecoder.cpp',
+        '../src/platform/Logger.cpp',
+        dependencies: [gtest_dep, libavcodec, libavformat, libavutil, libswscale, spdlog]))

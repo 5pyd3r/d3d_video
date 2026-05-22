@@ -20,7 +20,6 @@
 #include <dxgi1_2.h>
 #include <DirectXMath.h>
 
-#include "VideoCtx.h"
 #include "VideoQuad.h"
 #include "RenderParam.h"
 #include "platform/Logger.h"
