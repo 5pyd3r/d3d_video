@@ -24,8 +24,8 @@ jobs:
 
       - name: Configure
         run: |
-          $env:CC = "clang"
-          $env:CXX = "clang++"
+          $env:CC = "clang-cl"
+          $env:CXX = "clang-cl"
           meson setup builddir --backend=ninja --wrap-mode=forcefallback
 
       - name: Build
