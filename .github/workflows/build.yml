@@ -15,17 +15,11 @@ jobs:
       - name: Setup Meson and Ninja
         run: pip install meson ninja
 
-      - name: Install vcpkg dependencies
-        run: |
-          vcpkg install spdlog:x64-windows ffmpeg:x64-windows gtest:x64-windows
-          vcpkg integrate install
-
       - name: Configure
         run: |
           $env:CC = "clang"
           $env:CXX = "clang++"
-          $env:PKG_CONFIG_PATH = "$env:VCPKG_INSTALLATION_ROOT\installed\x64-windows\lib\pkgconfig"
-          meson setup builddir --backend=ninja
+          meson setup builddir --backend=ninja --wrap-mode=forcefallback
 
       - name: Build
         run: meson compile -C builddir

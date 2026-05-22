@@ -14,7 +14,6 @@ project('d3d_video',
 
 build_root = meson.project_build_root()
 source_root = meson.project_source_root()
-python = find_program('python3')
 
 # spdlog
 spdlog = dependency('spdlog', required: true)

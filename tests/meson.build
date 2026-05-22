@@ -20,3 +20,11 @@ test('VideoDecoder',
         '../src/decode/VideoDecoder.cpp',
         '../src/platform/Logger.cpp',
         dependencies: [gtest_dep, libavcodec, libavformat, libavutil, libswscale, spdlog]))
+
+test('PlaybackPipeline',
+    executable('test_playback_pipeline',
+        'playback/PlaybackController_test.cpp',
+        '../src/source/MediaSource.cpp',
+        '../src/decode/VideoDecoder.cpp',
+        '../src/platform/Logger.cpp',
+        dependencies: [gtest_dep, libavcodec, libavformat, libavutil, libswscale, spdlog]))
