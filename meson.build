@@ -23,6 +23,7 @@ spdlog = dependency('spdlog', required: true)
 libavcodec = dependency('libavcodec', version: '>= 60.31.102')
 libavformat = dependency('libavformat', version: '>= 60.16.100')
 libavutil = dependency('libavutil', version: '>= 58.29.100')
+libswscale = dependency('libswscale')
 
 # 定义 UNICODE 宏（Windows 专用）
 if host_machine.system() == 'windows'
