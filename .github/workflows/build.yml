@@ -1,0 +1,40 @@
+name: Build
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Meson and Ninja
+        run: pip install meson ninja
+
+      - name: Install vcpkg dependencies
+        run: |
+          vcpkg install spdlog:x64-windows ffmpeg:x64-windows gtest:x64-windows
+          vcpkg integrate install
+
+      - name: Configure
+        run: |
+          $env:CC = "clang"
+          $env:CXX = "clang++"
+          $env:PKG_CONFIG_PATH = "$env:VCPKG_INSTALLATION_ROOT\installed\x64-windows\lib\pkgconfig"
+          meson setup builddir --backend=ninja
+
+      - name: Build
+        run: meson compile -C builddir
+
+      - name: Test
+        run: meson test -C builddir --print-errorlogs
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: d3d-video
+          path: builddir/src/d3d_video.exe
