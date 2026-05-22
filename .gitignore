@@ -1,0 +1,7 @@
+builddir/
+build/
+*.exe
+*.pdb
+*.ilk
+*.log
+.vs/
