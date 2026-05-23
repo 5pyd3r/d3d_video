@@ -22,6 +22,7 @@ public:
         AVFrame* frame;
     };
     DecodedFrame SendAndReceive(AVPacket* packet);
+    DecodedFrame Flush(int streamIndex);
 
 private:
     std::map<int, AVCodecContext*> codecMap;

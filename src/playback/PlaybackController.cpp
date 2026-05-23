@@ -97,6 +97,15 @@ uint32_t PlaybackController::Render(HWND hwnd) {
             }
         }
 
+        // Flush decoder if no frame yet
+        if (m_frame == nullptr) {
+            auto flushResult = m_decoder.Flush(0);  // video stream
+            if (flushResult.type == AVMEDIA_TYPE_VIDEO && flushResult.frame) {
+                m_frame = flushResult.frame;
+                m_frameCount++;
+            }
+        }
+
         if (m_frame == nullptr) {
             m_state = PlayState::Stop;
             return 0;

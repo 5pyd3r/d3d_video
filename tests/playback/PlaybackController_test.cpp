@@ -92,7 +92,16 @@ TEST_F(PlaybackPipelineTest, SourceDecodePipe_ProducesFrames) {
     int videoFrameCount = 0;
     for (int i = 0; i < 100; i++) {
         AVPacket* pkt = source.ReadPacket();
-        if (!pkt) break;
+        if (!pkt) {
+            for (unsigned int j = 0; j < source.GetFormatContext()->nb_streams; j++) {
+                auto decoded = decoder.Flush(j);
+                if (decoded.type == AVMEDIA_TYPE_VIDEO && decoded.frame) {
+                    videoFrameCount++;
+                    av_frame_free(&decoded.frame);
+                }
+            }
+            break;
+        }
 
         auto decoded = decoder.SendAndReceive(pkt);
         av_packet_free(&pkt);

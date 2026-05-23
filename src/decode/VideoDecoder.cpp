@@ -69,6 +69,24 @@ VideoDecoder::DecodedFrame VideoDecoder::SendAndReceive(AVPacket* packet) {
     return {AVMEDIA_TYPE_UNKNOWN, nullptr};
 }
 
+VideoDecoder::DecodedFrame VideoDecoder::Flush(int streamIndex) {
+    auto it = codecMap.find(streamIndex);
+    if (it == codecMap.end()) {
+        return {AVMEDIA_TYPE_UNKNOWN, nullptr};
+    }
+
+    AVCodecContext* codecCtx = it->second;
+    avcodec_send_packet(codecCtx, nullptr);
+
+    AVFrame* frame = av_frame_alloc();
+    int ret = avcodec_receive_frame(codecCtx, frame);
+    if (ret == 0) {
+        return {codecCtx->codec_type, frame};
+    }
+    av_frame_free(&frame);
+    return {AVMEDIA_TYPE_UNKNOWN, nullptr};
+}
+
 void VideoDecoder::Close() {
     for (auto& it : codecMap) {
         avcodec_free_context(&it.second);
