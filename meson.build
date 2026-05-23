@@ -9,6 +9,7 @@ project('d3d_video',
             'cpp_std=c++20',
             'cpp_eh=default',
             'warning_level=2',
+            'default_library=static',
         ]
 )
 
