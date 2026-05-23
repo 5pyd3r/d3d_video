@@ -8,10 +8,6 @@ extern "C" {
 #include <libavutil/frame.h>
 }
 
-#include <spdlog/spdlog.h>
-
-extern std::shared_ptr<spdlog::logger> logger;
-
 PlaybackController::PlaybackController() : m_vq(nullptr), m_device(nullptr), m_deviceCtx(nullptr) {}
 
 PlaybackController::~PlaybackController() {
@@ -28,7 +24,7 @@ void PlaybackController::Init(ID3D11Device* device, ID3D11DeviceContext* deviceC
     m_viewHeight = viewHeight;
 
     m_swapChainMgr.Init(device, deviceCtx, swapChain, viewWidth, viewHeight);
-    m_vq = std::make_unique<nv::VideoQuad>(device, deviceCtx, m_videoWidth, m_videoHeight);
+    m_vq = std::make_unique<nv::VideoQuad>(device, deviceCtx, m_videoHeight, m_videoWidth);
 }
 
 uint32_t PlaybackController::LoadFile(const char* filePath) {

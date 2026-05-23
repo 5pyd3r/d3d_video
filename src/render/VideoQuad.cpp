@@ -33,6 +33,7 @@ VideoQuad::VideoQuad(
 		IDXGIResource *dxgiShareTexture;
 		videoTexture->QueryInterface(__uuidof(IDXGIResource), (void **)&dxgiShareTexture);
 		dxgiShareTexture->GetSharedHandle(&sharedHandle);
+		dxgiShareTexture->Release();
 	}
 
 	D3D11_SHADER_RESOURCE_VIEW_DESC const luminancePlaneDesc = CD3D11_SHADER_RESOURCE_VIEW_DESC(
@@ -138,24 +139,22 @@ void VideoQuad::Resize(int videoHeight, int videoWidth)
 	m_chrominanceView->Release();
 	m_chrominanceView = nullptr;
 
-	if (videoTexture == nullptr)
-	{
-		D3D11_TEXTURE2D_DESC tdesc = {};
-		tdesc.Format = DXGI_FORMAT_NV12;
-		tdesc.Usage = D3D11_USAGE_DEFAULT;
-		tdesc.MiscFlags = D3D11_RESOURCE_MISC_SHARED;
-		tdesc.ArraySize = 1;
-		tdesc.MipLevels = 1;
-		tdesc.SampleDesc.Count = 1;
-		tdesc.Height = videoHeight;
-		tdesc.Width = videoWidth;
-		tdesc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
-		_device->CreateTexture2D(&tdesc, nullptr, &videoTexture);
+	D3D11_TEXTURE2D_DESC tdesc = {};
+	tdesc.Format = DXGI_FORMAT_NV12;
+	tdesc.Usage = D3D11_USAGE_DEFAULT;
+	tdesc.MiscFlags = D3D11_RESOURCE_MISC_SHARED;
+	tdesc.ArraySize = 1;
+	tdesc.MipLevels = 1;
+	tdesc.SampleDesc.Count = 1;
+	tdesc.Height = videoHeight;
+	tdesc.Width = videoWidth;
+	tdesc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+	_device->CreateTexture2D(&tdesc, nullptr, &videoTexture);
 
-		IDXGIResource *dxgiShareTexture;
-		videoTexture->QueryInterface(__uuidof(IDXGIResource), (void **)&dxgiShareTexture);
-		dxgiShareTexture->GetSharedHandle(&sharedHandle);
-	}
+	IDXGIResource *dxgiShareTexture;
+	videoTexture->QueryInterface(__uuidof(IDXGIResource), (void **)&dxgiShareTexture);
+	dxgiShareTexture->GetSharedHandle(&sharedHandle);
+	dxgiShareTexture->Release();
 
 	D3D11_SHADER_RESOURCE_VIEW_DESC const luminancePlaneDesc = CD3D11_SHADER_RESOURCE_VIEW_DESC(
 		videoTexture,

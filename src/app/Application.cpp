@@ -115,7 +115,7 @@ LRESULT CALLBACK Application::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM
         if (pc) {
             auto width = GET_X_LPARAM(lParam);
             auto height = GET_Y_LPARAM(lParam);
-            if ((GetWindowLongPtr(hwnd, GWL_STYLE) == (WS_VISIBLE | WS_POPUP | WS_CLIPSIBLINGS))) {
+            if ((GetWindowLongPtr(hwnd, GWL_STYLE) & (WS_VISIBLE | WS_POPUP | WS_CLIPSIBLINGS)) == (WS_VISIBLE | WS_POPUP | WS_CLIPSIBLINGS)) {
                 RECT cr = {0, 0, 100, 100};
                 AdjustWindowRect(&cr, WS_OVERLAPPEDWINDOW, FALSE);
                 width = width - (cr.right - cr.left - 100);

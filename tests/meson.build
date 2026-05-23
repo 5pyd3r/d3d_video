@@ -11,7 +11,7 @@ test('MediaSource',
         'source/MediaSource_test.cpp',
         '../src/source/MediaSource.cpp',
         '../src/platform/Logger.cpp',
-        dependencies: [gtest_dep, libavcodec, libavformat, libavutil, libswscale, spdlog]))
+        dependencies: [gtest_dep, libavcodec, libavformat, libavutil, libavutil, spdlog]))
 
 test('VideoDecoder',
     executable('test_video_decoder',
@@ -19,7 +19,7 @@ test('VideoDecoder',
         '../src/source/MediaSource.cpp',
         '../src/decode/VideoDecoder.cpp',
         '../src/platform/Logger.cpp',
-        dependencies: [gtest_dep, libavcodec, libavformat, libavutil, libswscale, spdlog]))
+        dependencies: [gtest_dep, libavcodec, libavformat, libavutil, libavutil, spdlog]))
 
 test('PlaybackPipeline',
     executable('test_playback_pipeline',
@@ -27,4 +27,4 @@ test('PlaybackPipeline',
         '../src/source/MediaSource.cpp',
         '../src/decode/VideoDecoder.cpp',
         '../src/platform/Logger.cpp',
-        dependencies: [gtest_dep, libavcodec, libavformat, libavutil, libswscale, spdlog]))
+        dependencies: [gtest_dep, libavcodec, libavformat, libavutil, libavutil, spdlog]))

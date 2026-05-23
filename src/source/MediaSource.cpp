@@ -5,10 +5,6 @@ extern "C" {
 #include <libavformat/avformat.h>
 }
 
-#include <spdlog/spdlog.h>
-
-extern std::shared_ptr<spdlog::logger> logger;
-
 MediaSource::MediaSource() : fmtCtx(nullptr) {}
 
 MediaSource::~MediaSource() {

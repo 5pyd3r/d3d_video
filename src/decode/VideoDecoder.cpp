@@ -7,10 +7,6 @@ extern "C" {
 #include <libavutil/hwcontext.h>
 }
 
-#include <spdlog/spdlog.h>
-
-extern std::shared_ptr<spdlog::logger> logger;
-
 VideoDecoder::VideoDecoder() {}
 VideoDecoder::~VideoDecoder() { Close(); }
 
