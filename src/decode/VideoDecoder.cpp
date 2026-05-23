@@ -21,7 +21,13 @@ uint32_t VideoDecoder::Init(AVFormatContext* fmtCtx, double& avg_frame_rate) {
         if (!codec) continue;
 
         if (codec->type == AVMEDIA_TYPE_VIDEO) {
-            avg_frame_rate = (double)theStream->avg_frame_rate.num / theStream->avg_frame_rate.den;
+            if (theStream->avg_frame_rate.num > 0 && theStream->avg_frame_rate.den > 0) {
+                avg_frame_rate = (double)theStream->avg_frame_rate.num / theStream->avg_frame_rate.den;
+            } else if (theStream->r_frame_rate.num > 0 && theStream->r_frame_rate.den > 0) {
+                avg_frame_rate = (double)theStream->r_frame_rate.num / theStream->r_frame_rate.den;
+            } else {
+                avg_frame_rate = 30.0;
+            }
             auto* vcodecCtx = avcodec_alloc_context3(codec);
             avcodec_parameters_to_context(vcodecCtx, theStream->codecpar);
             avcodec_open2(vcodecCtx, codec, NULL);
