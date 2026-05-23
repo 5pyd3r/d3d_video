@@ -28,10 +28,15 @@ void PlaybackController::Init(ID3D11Device* device, ID3D11DeviceContext* deviceC
 }
 
 uint32_t PlaybackController::LoadFile(const char* filePath) {
+    av_frame_free(&m_frame);
+    m_frame = nullptr;
+    m_decoder.Close();
+    m_source.Close();
+
     uint32_t ret = m_source.Open(filePath);
     if (ret != 0) return ret;
 
-    ret = m_decoder.Init(m_source.GetFormatContext(), m_frameDuration);
+    ret = m_decoder.Init(m_source.GetFormatContext(), m_frameDuration, m_device);
     if (ret != 0) return ret;
 
     m_frameCount = 0;
@@ -111,7 +116,7 @@ uint32_t PlaybackController::Render(HWND hwnd) {
         }
 
         if (presentTime < frameTime + m_frameDuration) {
-            TextureUpdater::Update(m_vq->GetsharedHandle(),
+            TextureUpdater::Update(m_deviceCtx, m_vq->GetVideoTexture(),
                                     m_frame, m_videoWidth, m_videoHeight, m_vq.get());
         }
     }

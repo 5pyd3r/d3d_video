@@ -8,7 +8,6 @@ using namespace nv;
 namespace dx = DirectX;
 
 ID3D11Texture2D *VideoQuad::videoTexture;
-HANDLE VideoQuad::sharedHandle;
 
 VideoQuad::VideoQuad(
 	ID3D11Device* device,
@@ -30,10 +29,6 @@ VideoQuad::VideoQuad(
 		tdesc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
 		_device->CreateTexture2D(&tdesc, nullptr, &videoTexture);
 
-		IDXGIResource *dxgiShareTexture;
-		videoTexture->QueryInterface(__uuidof(IDXGIResource), (void **)&dxgiShareTexture);
-		dxgiShareTexture->GetSharedHandle(&sharedHandle);
-		dxgiShareTexture->Release();
 	}
 
 	D3D11_SHADER_RESOURCE_VIEW_DESC const luminancePlaneDesc = CD3D11_SHADER_RESOURCE_VIEW_DESC(
@@ -151,10 +146,6 @@ void VideoQuad::Resize(int videoHeight, int videoWidth)
 	tdesc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
 	_device->CreateTexture2D(&tdesc, nullptr, &videoTexture);
 
-	IDXGIResource *dxgiShareTexture;
-	videoTexture->QueryInterface(__uuidof(IDXGIResource), (void **)&dxgiShareTexture);
-	dxgiShareTexture->GetSharedHandle(&sharedHandle);
-	dxgiShareTexture->Release();
 
 	D3D11_SHADER_RESOURCE_VIEW_DESC const luminancePlaneDesc = CD3D11_SHADER_RESOURCE_VIEW_DESC(
 		videoTexture,
@@ -246,11 +237,6 @@ void VideoQuad::UpdateByRatio(double srcRatio, double dstRatio) {
 void nv::VideoQuad::BeginDraw()
 {
 	transformMatrix = dx::XMMatrixRotationX(0);
-}
-
-HANDLE nv::VideoQuad::GetsharedHandle()
-{
-	return sharedHandle;
 }
 
 void VideoQuad::Draw() {

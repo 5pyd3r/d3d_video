@@ -5,12 +5,14 @@ extern "C" {
 #include <libavcodec/avcodec.h>
 #include <libavformat/avformat.h>
 #include <libavutil/hwcontext.h>
+#include <libavutil/hwcontext_d3d11va.h>
 }
 
 VideoDecoder::VideoDecoder() {}
 VideoDecoder::~VideoDecoder() { Close(); }
 
-uint32_t VideoDecoder::Init(AVFormatContext* fmtCtx, double& avg_frame_rate) {
+uint32_t VideoDecoder::Init(AVFormatContext* fmtCtx, double& avg_frame_rate,
+                            ID3D11Device* device) {
     for (unsigned int i = 0; i < fmtCtx->nb_streams; i++) {
         auto* theStream = fmtCtx->streams[i];
         const AVCodec* codec = avcodec_find_decoder(theStream->codecpar->codec_id);
@@ -30,7 +32,21 @@ uint32_t VideoDecoder::Init(AVFormatContext* fmtCtx, double& avg_frame_rate) {
             codecMap[i] = vcodecCtx;
 
             AVBufferRef* hw_device_ctx = nullptr;
-            av_hwdevice_ctx_create(&hw_device_ctx, AVHWDeviceType::AV_HWDEVICE_TYPE_D3D11VA, NULL, NULL, NULL);
+            if (device) {
+                hw_device_ctx = av_hwdevice_ctx_alloc(AV_HWDEVICE_TYPE_D3D11VA);
+                if (hw_device_ctx) {
+                    auto* device_ctx = (AVHWDeviceContext*)hw_device_ctx->data;
+                    auto* d3d11_ctx = (AVD3D11VADeviceContext*)device_ctx->hwctx;
+                    d3d11_ctx->device = device;
+                    if (av_hwdevice_ctx_init(hw_device_ctx) < 0) {
+                        av_buffer_unref(&hw_device_ctx);
+                        hw_device_ctx = nullptr;
+                    }
+                }
+            } else {
+                av_hwdevice_ctx_create(&hw_device_ctx, AV_HWDEVICE_TYPE_D3D11VA,
+                                       NULL, NULL, 0);
+            }
             if (hw_device_ctx) {
                 vcodecCtx->hw_device_ctx = hw_device_ctx;
             }
