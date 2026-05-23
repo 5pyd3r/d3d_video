@@ -15,39 +15,21 @@ jobs:
       - name: Setup Meson and Ninja
         run: pip install meson ninja
 
-      - name: Setup MSVC and Windows SDK environment
+      - name: Setup MSVC environment via vcvars64
         shell: pwsh
         run: |
-          # Find Visual Studio
           $vsPath = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -property installationPath
-          # Find Windows SDK version
-          $sdkRoot = "${env:ProgramFiles(x86)}\Windows Kits\10"
-          $sdkBinVer = Get-ChildItem "$sdkRoot\bin" -Directory | Where-Object { $_.Name -match '^10\.' } | Sort-Object Name -Descending | Select-Object -First 1
-          $sdkIncVer = Get-ChildItem "$sdkRoot\Include" -Directory | Where-Object { $_.Name -match '^10\.' } | Sort-Object Name -Descending | Select-Object -First 1
-          # Find MSVC version
-          $msvcVer = Get-ChildItem "$vsPath\VC\Tools\MSVC" -Directory | Sort-Object Name -Descending | Select-Object -First 1
+          $envBlock = cmd /c "`"$vsPath\VC\Auxiliary\Build\vcvars64.bat`" > nul && set"
+          $envBlock -split "`n" | ForEach-Object {
+            if ($_ -match '^(INCLUDE|LIB|LIBPATH)=(.*)$') {
+              echo "$($matches[1])=$($matches[2])" >> $env:GITHUB_ENV
+            }
+          }
 
-          # Add fxc/rc to PATH
-          echo "$($sdkBinVer.FullName)\x64" >> $env:GITHUB_PATH
-
-          # Set INCLUDE for rc.exe
-          $include = @(
-              "$vsPath\VC\Tools\MSVC\$($msvcVer.Name)\include"
-              "$vsPath\VC\Tools\MSVC\$($msvcVer.Name)\atlmfc\include"
-              "$sdkRoot\Include\$($sdkIncVer.Name)\ucrt"
-              "$sdkRoot\Include\$($sdkIncVer.Name)\um"
-              "$sdkRoot\Include\$($sdkIncVer.Name)\shared"
-          ) -join ';'
-          echo "INCLUDE=$include" >> $env:GITHUB_ENV
-
-          # Set LIB for linker
-          $lib = @(
-              "$vsPath\VC\Tools\MSVC\$($msvcVer.Name)\lib\x64"
-              "$vsPath\VC\Tools\MSVC\$($msvcVer.Name)\atlmfc\lib\x64"
-              "$sdkRoot\Lib\$($sdkIncVer.Name)\ucrt\x64"
-              "$sdkRoot\Lib\$($sdkIncVer.Name)\um\x64"
-          ) -join ';'
-          echo "LIB=$lib" >> $env:GITHUB_ENV
+          # Also add fxc/rc to PATH
+          $sdkRoot = "${env:ProgramFiles(x86)}\Windows Kits\10\bin"
+          $sdkVer = Get-ChildItem $sdkRoot -Directory | Where-Object { $_.Name -match '^10\.' } | Sort-Object Name -Descending | Select-Object -First 1
+          echo "$($sdkVer.FullName)\x64" >> $env:GITHUB_PATH
 
       - name: Configure
         run: |
