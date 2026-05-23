@@ -6,6 +6,11 @@
 - Feature 分支命名：`feat/<描述>`、`fix/<描述>`、`refactor/<描述>`
 - AI 绝不 merge PR，只有人能 merge。
 - Merge 后删除 feature 分支：`git branch -d feat/xxx && git push origin --delete feat/xxx`
+- **使用 git worktree 创建隔离工作目录。** 在新分支上工作前，通过 `git worktree add ../d3d_video-<branch> <branch>` 创建隔离目录，避免污染主工作区。完成后提交并推送至 GitHub。
+
+## 文档规范
+
+- **文档不放在当前代码仓库。** 所有文档（设计文档、说明文档、spec 等）统一存放在 `/app/docs` 目录下，不放入项目仓库中。
 
 ## CI 失败处理
 
