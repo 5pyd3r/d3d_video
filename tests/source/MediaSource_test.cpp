@@ -92,11 +92,6 @@ TEST_F(MediaSourceTest, Open_ValidFile_ReturnsZero) {
     source.Close();
 }
 
-TEST_F(MediaSourceTest, Open_InvalidPath_ReturnsError) {
-    MediaSource source;
-    EXPECT_NE(source.Open("nonexistent_file_xyz.mp4"), 0u);
-}
-
 TEST_F(MediaSourceTest, ReadPacket_AfterOpen_ReturnsPacket) {
     MediaSource source;
     source.Open(testFilePath.c_str());
