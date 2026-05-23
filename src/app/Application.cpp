@@ -6,6 +6,9 @@
 
 #include <windowsx.h>
 #include <ShlObj.h>
+#include <vector>
+#include <algorithm>
+#include <functional>
 
 #define DEFAULT_WINDOW_WIDTH 800
 #define DEFAULT_WINDOW_HEIGHT 600
@@ -148,10 +151,44 @@ LRESULT CALLBACK Application::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM
         HDROP hDrop = (HDROP)wParam;
         wchar_t filePath[MAX_PATH];
         DragQueryFile(hDrop, 0, filePath, MAX_PATH);
+
         auto* pc = (PlaybackController*)GetWindowLongPtr(hwnd, GWLP_USERDATA);
-        uint32_t ret = pc->LoadFile(w2u(filePath).c_str());
-        if (ret != 0) {
-            logger->error("LoadFile failed: {}", ret);
+        if (!pc) { DragFinish(hDrop); return 0; }
+
+        DWORD attrs = GetFileAttributesW(filePath);
+        if (attrs != INVALID_FILE_ATTRIBUTES && (attrs & FILE_ATTRIBUTE_DIRECTORY)) {
+            std::vector<std::string> playlist;
+            std::function<void(const std::wstring&)> enumerate =
+                [&](const std::wstring& dir) {
+                std::wstring searchPath = dir + L"\\*";
+                WIN32_FIND_DATAW fd;
+                HANDLE hFind = FindFirstFileW(searchPath.c_str(), &fd);
+                if (hFind == INVALID_HANDLE_VALUE) return;
+                do {
+                    if (wcscmp(fd.cFileName, L".") == 0 ||
+                        wcscmp(fd.cFileName, L"..") == 0) continue;
+                    std::wstring fullPath = dir + L"\\" + fd.cFileName;
+                    if (fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
+                        enumerate(fullPath);
+                    } else {
+                        std::string utf8Path = w2u(fullPath);
+                        if (IsVideoFile(utf8Path)) {
+                            playlist.push_back(utf8Path);
+                        }
+                    }
+                } while (FindNextFileW(hFind, &fd));
+                FindClose(hFind);
+            };
+            enumerate(std::wstring(filePath));
+            if (!playlist.empty()) {
+                std::sort(playlist.begin(), playlist.end());
+                pc->SetPlaylist(playlist);
+            }
+        } else {
+            uint32_t ret = pc->LoadFile(w2u(filePath).c_str());
+            if (ret != 0) {
+                logger->error("LoadFile failed: {}", ret);
+            }
         }
         DragFinish(hDrop);
         return 0;
