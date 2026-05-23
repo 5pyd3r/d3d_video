@@ -62,7 +62,10 @@ void PlaybackController::Draw(HWND hwnd) {
 }
 
 uint32_t PlaybackController::Render(HWND hwnd) {
-    if (m_state == PlayState::Stop) return 0;
+    if (m_state == PlayState::Stop) {
+        Draw(hwnd);
+        return 0;
+    }
 
     auto now = std::chrono::steady_clock::now();
     std::chrono::duration<double> elapsed = now - m_startTime;
