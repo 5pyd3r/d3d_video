@@ -9,8 +9,7 @@ namespace nv { class VideoQuad; }
 
 class TextureUpdater {
 public:
-    static void Update(ID3D11DeviceContext* deviceCtx,
-                       HANDLE sharedHandle,
+    static void Update(HANDLE sharedHandle,
                        AVFrame* frame,
                        int& inOutWidth,
                        int& inOutHeight,

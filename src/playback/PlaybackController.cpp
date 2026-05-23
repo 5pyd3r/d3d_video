@@ -111,7 +111,7 @@ uint32_t PlaybackController::Render(HWND hwnd) {
         }
 
         if (presentTime < frameTime + m_frameDuration) {
-            TextureUpdater::Update(m_deviceCtx, m_vq->GetsharedHandle(),
+            TextureUpdater::Update(m_vq->GetsharedHandle(),
                                     m_frame, m_videoWidth, m_videoHeight, m_vq.get());
         }
     }

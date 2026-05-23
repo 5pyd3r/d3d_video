@@ -5,8 +5,7 @@ extern "C" {
 #include <libavutil/frame.h>
 }
 
-void TextureUpdater::Update(ID3D11DeviceContext* deviceCtx,
-                             HANDLE sharedHandle,
+void TextureUpdater::Update(HANDLE sharedHandle,
                              AVFrame* frame,
                              int& inOutWidth,
                              int& inOutHeight,
@@ -21,13 +20,17 @@ void TextureUpdater::Update(ID3D11DeviceContext* deviceCtx,
     int t_index = (int)(intptr_t)frame->data[1];
 
     ID3D11Device* dev = nullptr;
-    deviceCtx->GetDevice(&dev);
+    t_frame->GetDevice(&dev);
+
+    ID3D11DeviceContext* ctx = nullptr;
+    dev->GetImmediateContext(&ctx);
 
     ID3D11Texture2D* videoTextureShared = nullptr;
     dev->OpenSharedResource(sharedHandle, __uuidof(ID3D11Texture2D), (void**)&videoTextureShared);
-    deviceCtx->CopySubresourceRegion(videoTextureShared, 0, 0, 0, 0, t_frame, t_index, 0);
-    deviceCtx->Flush();
+    ctx->CopySubresourceRegion(videoTextureShared, 0, 0, 0, 0, t_frame, t_index, 0);
+    ctx->Flush();
 
     videoTextureShared->Release();
+    ctx->Release();
     dev->Release();
 }
