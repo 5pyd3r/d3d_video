@@ -23,3 +23,29 @@ TEST(StringUtilsTest, W2S_Basic) {
     std::string ansi = w2s(input);
     EXPECT_FALSE(ansi.empty());
 }
+
+TEST(StringUtilsTest, IsVideoFile_KnownExtensions) {
+    EXPECT_TRUE(IsVideoFile("video.mp4"));
+    EXPECT_TRUE(IsVideoFile("video.avi"));
+    EXPECT_TRUE(IsVideoFile("video.mkv"));
+    EXPECT_TRUE(IsVideoFile("video.MOV"));
+    EXPECT_TRUE(IsVideoFile("video.WMV"));
+    EXPECT_TRUE(IsVideoFile("video.webm"));
+    EXPECT_TRUE(IsVideoFile("video.flv"));
+    EXPECT_TRUE(IsVideoFile("video.ts"));
+    EXPECT_TRUE(IsVideoFile("video.m4v"));
+    EXPECT_TRUE(IsVideoFile("video.mpg"));
+    EXPECT_TRUE(IsVideoFile("video.mpeg"));
+}
+
+TEST(StringUtilsTest, IsVideoFile_NonVideo) {
+    EXPECT_FALSE(IsVideoFile("readme.txt"));
+    EXPECT_FALSE(IsVideoFile("video.mp3"));
+    EXPECT_FALSE(IsVideoFile("noextension"));
+    EXPECT_FALSE(IsVideoFile(""));
+}
+
+TEST(StringUtilsTest, IsVideoFile_PathWithDots) {
+    EXPECT_TRUE(IsVideoFile("C:\\videos\\movie.2024.mp4"));
+    EXPECT_FALSE(IsVideoFile(".gitignore"));
+}
