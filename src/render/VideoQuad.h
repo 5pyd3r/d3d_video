@@ -36,7 +36,12 @@ namespace nv {
 		void UpdateByRatio(double srcRatio, double dstRatio);
 		void BeginDraw();
 		HANDLE GetsharedHandle();
+		ID3D11Texture2D* GetVideoTexture() const { return videoTexture; }
 		void Draw();
+		void InitCapture(int videoWidth, int videoHeight);
+		void ResizeCapture(int videoWidth, int videoHeight);
+		ID3D11Texture2D* GetCaptureTexture() const { return captureTexture; }
+		void DrawCapture();
 	private:
 		ID3D11Device* _device;
 		ID3D11DeviceContext* _deviceCtx;
@@ -51,6 +56,11 @@ namespace nv {
 		ID3D11VertexShader *pVertexShader;
 		ID3D11PixelShader *pPixelShader;
 		ID3D11SamplerState *pSampler;
+
+		// Capture BGRA rendering
+		ID3D11Texture2D *captureTexture = nullptr;
+		ID3D11ShaderResourceView *captureSRV = nullptr;
+		ID3D11PixelShader *capturePixelShader = nullptr;
 
 		uint32_t indicesSize;
 		DirectX::XMMATRIX transformMatrix;

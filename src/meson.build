@@ -3,6 +3,7 @@ platform_src = files(
     'platform/Logger.cpp',
     'platform/CrashHandler.cpp',
     'platform/StreamUtils.cpp',
+    'platform/ScreenCapture.cpp',
 )
 
 source_src = files(
@@ -63,9 +64,25 @@ pshader = custom_target(
   build_by_default: true
 )
 
+cpshader = custom_target(
+  'cpshader-compile',
+  input: 'CapturePixelShader.hlsl',
+  output: 'CapturePixelShader.h',
+  command: [
+    fxc,
+    '/T', 'ps_5_0',
+    '/E', 'main',
+    '/Vn', 'g_cps',
+    '/Fh', '@OUTPUT@',
+    '@INPUT@'
+  ],
+  build_by_default: true
+)
+
 dbghelp = meson.get_compiler('cpp').find_library('dbghelp', required: true)
 psapi = meson.get_compiler('cpp').find_library('psapi', required: true)
+windowsapp = meson.get_compiler('cpp').find_library('windowsapp', required: true)
 
-executable('d3d_video', [d3d_video_src, platform_src, source_src, decode_src, render_src, playback_src, app_src, vshader, pshader],
-    dependencies: [libavcodec, libavformat, libavutil, spdlog, dbghelp, psapi],
+executable('d3d_video', [d3d_video_src, platform_src, source_src, decode_src, render_src, playback_src, app_src, vshader, pshader, cpshader],
+    dependencies: [libavcodec, libavformat, libavutil, spdlog, dbghelp, psapi, windowsapp],
     win_subsystem: 'windows')
