@@ -26,6 +26,7 @@ public:
     uint32_t Render(HWND hwnd);
     void ResizeSwapChain(int width, int height);
     PlayState GetState() const { return m_state; }
+    const std::string& GetCurrentFilePath() const { return m_currentFilePath; }
 
 private:
     void Draw(HWND hwnd);
@@ -50,6 +51,8 @@ private:
     std::vector<std::string> m_playlist;
     int m_playlistIndex = -1;
     std::chrono::steady_clock::time_point m_startTime;
+    std::string m_currentFilePath;
+    std::wstring m_lastWindowTitle;
 };
 
 #endif

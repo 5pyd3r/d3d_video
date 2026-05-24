@@ -30,7 +30,7 @@ int Application::Run(HINSTANCE hInstance) {
     wndClass.lpfnWndProc = Application::WndProc;
 
     RegisterClass(&wndClass);
-    m_window = CreateWindow(className, L"Hello World 测试程序",
+    m_window = CreateWindow(className, L"D3D Video",
         WS_POPUP | WS_VISIBLE, CW_USEDEFAULT, CW_USEDEFAULT,
         DEFAULT_WINDOW_WIDTH, DEFAULT_WINDOW_HEIGHT,
         NULL, NULL, hInstance, NULL);
@@ -183,11 +183,15 @@ LRESULT CALLBACK Application::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM
             if (!playlist.empty()) {
                 std::sort(playlist.begin(), playlist.end());
                 pc->SetPlaylist(playlist);
+                SetWindowTextW(hwnd, TruncateFileNameForTitle(pc->GetCurrentFilePath()).c_str());
             }
         } else {
-            uint32_t ret = pc->LoadFile(w2u(filePath).c_str());
+            std::string utf8Path = w2u(filePath);
+            uint32_t ret = pc->LoadFile(utf8Path.c_str());
             if (ret != 0) {
                 logger->error("LoadFile failed: {}", ret);
+            } else {
+                SetWindowTextW(hwnd, TruncateFileNameForTitle(utf8Path).c_str());
             }
         }
         DragFinish(hDrop);
