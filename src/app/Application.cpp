@@ -78,44 +78,60 @@ void Application::HandleFileDrop(IDataObject* pDataObj) {
     if (FAILED(pDataObj->GetData(&fmt, &medium))) return;
 
     HDROP hDrop = (HDROP)medium.hGlobal;
-    wchar_t filePath[MAX_PATH];
-    DragQueryFile(hDrop, 0, filePath, MAX_PATH);
 
     auto* ctrl = m_controller.get();
     if (!ctrl) { ReleaseStgMedium(&medium); return; }
 
-    DWORD attrs = GetFileAttributesW(filePath);
-    if (attrs != INVALID_FILE_ATTRIBUTES && (attrs & FILE_ATTRIBUTE_DIRECTORY)) {
-        std::vector<std::string> playlist;
-        std::function<void(const std::wstring&)> enumerate =
-            [&](const std::wstring& dir) {
-            std::wstring searchPath = dir + L"\\*";
-            WIN32_FIND_DATAW fd;
-            HANDLE hFind = FindFirstFileW(searchPath.c_str(), &fd);
-            if (hFind == INVALID_HANDLE_VALUE) return;
-            do {
-                if (wcscmp(fd.cFileName, L".") == 0 ||
-                    wcscmp(fd.cFileName, L"..") == 0) continue;
-                std::wstring fullPath = dir + L"\\" + fd.cFileName;
-                if (fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
-                    enumerate(fullPath);
-                } else {
-                    std::string utf8Path = w2u(fullPath);
-                    if (IsVideoFile(utf8Path)) {
-                        playlist.push_back(utf8Path);
-                    }
+    // Enumerate a directory recursively, appending video files to playlist
+    std::function<void(const std::wstring&, std::vector<std::string>&)> enumerateDir;
+    enumerateDir = [&enumerateDir](const std::wstring& dir, std::vector<std::string>& playlist) {
+        std::wstring searchPath = dir + L"\\*";
+        WIN32_FIND_DATAW fd;
+        HANDLE hFind = FindFirstFileW(searchPath.c_str(), &fd);
+        if (hFind == INVALID_HANDLE_VALUE) return;
+        do {
+            if (wcscmp(fd.cFileName, L".") == 0 ||
+                wcscmp(fd.cFileName, L"..") == 0) continue;
+            std::wstring fullPath = dir + L"\\" + fd.cFileName;
+            if (fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
+                enumerateDir(fullPath, playlist);
+            } else {
+                std::string utf8Path = w2u(fullPath);
+                if (IsVideoFile(utf8Path)) {
+                    playlist.push_back(utf8Path);
                 }
-            } while (FindNextFileW(hFind, &fd));
-            FindClose(hFind);
-        };
-        enumerate(std::wstring(filePath));
-        if (!playlist.empty()) {
-            std::sort(playlist.begin(), playlist.end());
+            }
+        } while (FindNextFileW(hFind, &fd));
+        FindClose(hFind);
+    };
+
+    int fileCount = DragQueryFile(hDrop, 0xFFFFFFFF, NULL, 0);
+    std::vector<std::string> playlist;
+    bool hasDirectories = false;
+
+    for (int i = 0; i < fileCount; ++i) {
+        wchar_t filePath[MAX_PATH];
+        DragQueryFile(hDrop, i, filePath, MAX_PATH);
+
+        DWORD attrs = GetFileAttributesW(filePath);
+        if (attrs != INVALID_FILE_ATTRIBUTES && (attrs & FILE_ATTRIBUTE_DIRECTORY)) {
+            hasDirectories = true;
+            enumerateDir(std::wstring(filePath), playlist);
+        } else {
+            std::string utf8Path = w2u(filePath);
+            if (IsVideoFile(utf8Path)) {
+                playlist.push_back(utf8Path);
+            }
+        }
+    }
+
+    if (!playlist.empty()) {
+        std::sort(playlist.begin(), playlist.end());
+        if (playlist.size() == 1 && !hasDirectories) {
+            ctrl->SetSource(std::make_unique<FileSource>(playlist[0].c_str(), m_device));
+        } else {
             ctrl->SetSource(std::make_unique<PlaylistSource>(playlist, m_device));
         }
-    } else {
-        std::string utf8Path = w2u(filePath);
-        ctrl->SetSource(std::make_unique<FileSource>(utf8Path.c_str(), m_device));
     }
 
     auto* src = ctrl->GetSource();

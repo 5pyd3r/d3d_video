@@ -33,19 +33,10 @@ bool FileSource::Init() {
 
     m_frameRate = frameRate;
     m_frameDuration = (frameRate > 0.0) ? (1.0 / frameRate) : (1.0 / 30.0);
-    m_frameCount = 0;
-    m_startTime = std::chrono::steady_clock::now();
     return true;
 }
 
 bool FileSource::ReadFrame(VideoFrame& out, ID3D11DeviceContext* ctx, nv::VideoQuad* vq) {
-    auto now = std::chrono::steady_clock::now();
-    std::chrono::duration<double> elapsed = now - m_startTime;
-    double presentTime = elapsed.count();
-    double frameTime = m_frameDuration * m_frameCount;
-
-    if (presentTime < frameTime) return false;  // Not time for next frame yet
-
     // Decode until we get a video frame or run out of packets
     for (;;) {
         AVPacket* packet = m_mediaSource.ReadPacket();
@@ -55,7 +46,6 @@ bool FileSource::ReadFrame(VideoFrame& out, ID3D11DeviceContext* ctx, nv::VideoQ
             auto flushResult = m_decoder.Flush(0);
             if (flushResult.type == AVMEDIA_TYPE_VIDEO && flushResult.frame) {
                 m_frame = flushResult.frame;
-                m_frameCount++;
                 break;
             }
             return false;  // EOF
@@ -67,7 +57,6 @@ bool FileSource::ReadFrame(VideoFrame& out, ID3D11DeviceContext* ctx, nv::VideoQ
         if (decoded.type == AVMEDIA_TYPE_VIDEO) {
             av_frame_free(&m_frame);
             m_frame = decoded.frame;
-            m_frameCount++;
             break;
         } else if (decoded.type == AVMEDIA_TYPE_AUDIO) {
             av_frame_free(&decoded.frame);

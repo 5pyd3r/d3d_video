@@ -23,6 +23,9 @@ void VideoController::SetSource(std::unique_ptr<IVideoSource> source) {
         m_source = std::move(source);
         m_videoWidth = m_source->GetWidth();
         m_videoHeight = m_source->GetHeight();
+        m_frameDuration = m_source->GetFrameDuration();
+        m_frameCount = 0;
+        m_startTime = std::chrono::steady_clock::now();
         m_state = PlayState::Play;
     }
 }
@@ -73,18 +76,33 @@ uint32_t VideoController::Render(HWND hwnd) {
         return 0;
     }
 
-    VideoFrame frame = {};
-    m_source->ReadFrame(frame, m_deviceCtx, m_vq.get());
+    auto now = std::chrono::steady_clock::now();
+    std::chrono::duration<double> elapsed = now - m_startTime;
+    double presentTime = elapsed.count();
+    double frameTime = m_frameDuration * m_frameCount;
 
-    if (frame.width > 0 && frame.height > 0) {
-        m_videoWidth = frame.width;
-        m_videoHeight = frame.height;
+    if (presentTime < frameTime || m_state == PlayState::Pause) {
+        // Draw existing frame without decoding a new one
+        if (m_source->GetType() == SourceType::File) Draw(hwnd);
+        else DrawCapture(hwnd);
+        return 0;
     }
 
-    if (m_source->GetType() == SourceType::File) {
-        Draw(hwnd);
+    VideoFrame frame = {};
+    bool gotFrame = m_source->ReadFrame(frame, m_deviceCtx, m_vq.get());
+
+    if (gotFrame) {
+        m_frameCount++;
+        if (frame.width > 0 && frame.height > 0) {
+            m_videoWidth = frame.width;
+            m_videoHeight = frame.height;
+        }
+        if (m_source->GetType() == SourceType::File) Draw(hwnd);
+        else DrawCapture(hwnd);
     } else {
-        DrawCapture(hwnd);
+        // EOF — source ended
+        m_state = PlayState::Stop;
+        Draw(hwnd);
     }
     return 0;
 }
