@@ -15,6 +15,7 @@ void TextureUpdater::Update(ID3D11DeviceContext* deviceCtx,
         inOutWidth = frame->width;
         inOutHeight = frame->height;
         vq->Resize(inOutHeight, inOutWidth);
+        sharedHandle = vq->GetsharedHandle();
     }
 
     ID3D11Texture2D* t_frame = (ID3D11Texture2D*)frame->data[0];
