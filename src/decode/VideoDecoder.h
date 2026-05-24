@@ -8,13 +8,14 @@ struct AVFrame;
 struct AVCodecContext;
 struct AVFormatContext;
 struct AVPacket;
+struct ID3D11Device;
 
 class VideoDecoder {
 public:
     VideoDecoder();
     ~VideoDecoder();
 
-    uint32_t Init(AVFormatContext* fmtCtx, double& avg_frame_rate);
+    uint32_t Init(AVFormatContext* fmtCtx, double& avg_frame_rate, ID3D11Device* d3dDevice = nullptr);
     void Close();
 
     struct DecodedFrame {
