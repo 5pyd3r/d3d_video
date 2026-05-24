@@ -16,6 +16,8 @@
 static bool g_isFullscreen = false;
 static RECT g_windowedRect;
 
+Application::~Application() = default;
+
 int Application::Run(HINSTANCE hInstance) {
     InitCrashHandler();
     CoInitializeEx(NULL, COINIT::COINIT_MULTITHREADED);
@@ -48,9 +50,9 @@ int Application::Run(HINSTANCE hInstance) {
     int clientWidth = clientRect.right - clientRect.left;
     int clientHeight = clientRect.bottom - clientRect.top;
 
-    m_playback = new PlaybackController();
+    m_playback = std::make_unique<PlaybackController>();
     m_playback->Init(m_device, m_deviceCtx, m_swapChain, clientWidth, clientHeight);
-    SetWindowLongPtr(m_window, GWLP_USERDATA, (LONG_PTR)m_playback);
+    SetWindowLongPtr(m_window, GWLP_USERDATA, (LONG_PTR)m_playback.get());
 
     MSG msg;
     while (1) {
@@ -64,10 +66,11 @@ int Application::Run(HINSTANCE hInstance) {
         }
     }
 
-    delete m_playback;
+    m_playback.reset();
     if (m_deviceCtx) m_deviceCtx->Release();
     if (m_swapChain) m_swapChain->Release();
     if (m_device) m_device->Release();
+    ShutdownCrashHandler();
     CoUninitialize();
     return 0;
 }

@@ -40,8 +40,8 @@ namespace nv {
 	private:
 		ID3D11Device* _device;
 		ID3D11DeviceContext* _deviceCtx;
-		static ID3D11Texture2D *videoTexture;
-		static HANDLE sharedHandle;
+		ID3D11Texture2D *videoTexture = nullptr;
+		HANDLE sharedHandle = nullptr;
 		ID3D11ShaderResourceView *m_luminanceView;
 		ID3D11ShaderResourceView *m_chrominanceView;
 		ID3D11Buffer *pVertexBuffer;
