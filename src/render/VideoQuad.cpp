@@ -2,6 +2,7 @@
 
 #include "VideoQuad.h"
 #include "PixelShader.h"
+#include "CapturePixelShader.h"
 #include "VertexShader.h"
 
 using namespace nv;
@@ -110,6 +111,9 @@ VideoQuad::~VideoQuad()
 	m_luminanceView->Release();
 	m_chrominanceView->Release();
 	if (videoTexture) videoTexture->Release();
+	if (captureTexture) captureTexture->Release();
+	if (captureSRV) captureSRV->Release();
+	if (capturePixelShader) capturePixelShader->Release();
 	pVertexBuffer->Release();
 	pIndexBuffer->Release();
 	pConstantBuffer->Release();
@@ -215,6 +219,61 @@ void VideoQuad::Draw() {
 	_deviceCtx->PSSetShader(pPixelShader, 0, 0);
 	_deviceCtx->PSSetShaderResources(0, 1, &m_luminanceView);
 	_deviceCtx->PSSetShaderResources(1, 1, &m_chrominanceView);
+	_deviceCtx->PSSetSamplers(0, 1, &pSampler);
+
+	_deviceCtx->DrawIndexed(indicesSize, 0, 0);
+}
+
+// --- Capture BGRA rendering -------------------------------------------------
+
+void VideoQuad::InitCapture(int videoWidth, int videoHeight) {
+	ResizeCapture(videoWidth, videoHeight);
+	_device->CreatePixelShader(g_cps, sizeof(g_cps), nullptr, &capturePixelShader);
+}
+
+void VideoQuad::ResizeCapture(int videoWidth, int videoHeight) {
+	if (captureSRV) { captureSRV->Release(); captureSRV = nullptr; }
+	if (captureTexture) { captureTexture->Release(); captureTexture = nullptr; }
+
+	D3D11_TEXTURE2D_DESC desc = {};
+	desc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
+	desc.Width = videoWidth;
+	desc.Height = videoHeight;
+	desc.Usage = D3D11_USAGE_DEFAULT;
+	desc.MipLevels = 1;
+	desc.ArraySize = 1;
+	desc.SampleDesc.Count = 1;
+	desc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+	_device->CreateTexture2D(&desc, nullptr, &captureTexture);
+
+	D3D11_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
+	srvDesc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
+	srvDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
+	srvDesc.Texture2D.MipLevels = 1;
+	_device->CreateShaderResourceView(captureTexture, &srvDesc, &captureSRV);
+}
+
+void VideoQuad::DrawCapture() {
+	D3D11_MAPPED_SUBRESOURCE map;
+	_deviceCtx->Map(pConstantBuffer, 0, D3D11_MAP::D3D11_MAP_WRITE_DISCARD, 0, &map);
+
+	auto m = dx::XMMatrixTranspose(transformMatrix);
+	memcpy(map.pData, &m, sizeof(m));
+
+	_deviceCtx->Unmap(pConstantBuffer, 0);
+
+	UINT stride = sizeof(Vertex);
+	UINT offset = 0u;
+	_deviceCtx->IASetVertexBuffers(0, 1, &pVertexBuffer, &stride, &offset);
+	_deviceCtx->IASetIndexBuffer(pIndexBuffer, DXGI_FORMAT_R16_UINT, 0);
+	_deviceCtx->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY::D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+	_deviceCtx->IASetInputLayout(pInputLayout);
+
+	_deviceCtx->VSSetShader(pVertexShader, 0, 0);
+	_deviceCtx->VSSetConstantBuffers(0, 1, &pConstantBuffer);
+
+	_deviceCtx->PSSetShader(capturePixelShader, 0, 0);
+	_deviceCtx->PSSetShaderResources(0, 1, &captureSRV);
 	_deviceCtx->PSSetSamplers(0, 1, &pSampler);
 
 	_deviceCtx->DrawIndexed(indicesSize, 0, 0);

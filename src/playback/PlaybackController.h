@@ -27,9 +27,11 @@ public:
     void ResizeSwapChain(int width, int height);
     PlayState GetState() const { return m_state; }
     const std::string& GetCurrentFilePath() const { return m_currentFilePath; }
+    void Draw(HWND hwnd);
+    nv::VideoQuad* GetVideoQuad() const { return m_vq.get(); }
+    SwapChainManager& GetSwapChainMgr() { return m_swapChainMgr; }
 
 private:
-    void Draw(HWND hwnd);
 
     MediaSource m_source;
     VideoDecoder m_decoder;
