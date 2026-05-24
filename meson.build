@@ -13,6 +13,11 @@ project('d3d_video',
         ]
 )
 
+add_project_arguments(
+  '-DD3D11_NO_HELPERS',
+  language : 'cpp'
+)
+
 build_root = meson.project_build_root()
 source_root = meson.project_source_root()
 
