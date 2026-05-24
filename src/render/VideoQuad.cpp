@@ -36,20 +36,22 @@ VideoQuad::VideoQuad(
 		dxgiShareTexture->Release();
 	}
 
-	D3D11_SHADER_RESOURCE_VIEW_DESC const luminancePlaneDesc = CD3D11_SHADER_RESOURCE_VIEW_DESC(
-		videoTexture,
-		D3D11_SRV_DIMENSION_TEXTURE2D,
-		DXGI_FORMAT_R8_UNORM);
+	D3D11_SHADER_RESOURCE_VIEW_DESC luminancePlaneDesc = {};
+	luminancePlaneDesc.Format = DXGI_FORMAT_R8_UNORM;
+	luminancePlaneDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
+	luminancePlaneDesc.Texture2D.MostDetailedMip = 0;
+	luminancePlaneDesc.Texture2D.MipLevels = 1;
 
 	_device->CreateShaderResourceView(
 		videoTexture,
 		&luminancePlaneDesc,
 		&m_luminanceView);
 
-	D3D11_SHADER_RESOURCE_VIEW_DESC const chrominancePlaneDesc = CD3D11_SHADER_RESOURCE_VIEW_DESC(
-		videoTexture,
-		D3D11_SRV_DIMENSION_TEXTURE2D,
-		DXGI_FORMAT_R8G8_UNORM);
+	D3D11_SHADER_RESOURCE_VIEW_DESC chrominancePlaneDesc = {};
+	chrominancePlaneDesc.Format = DXGI_FORMAT_R8G8_UNORM;
+	chrominancePlaneDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
+	chrominancePlaneDesc.Texture2D.MostDetailedMip = 0;
+	chrominancePlaneDesc.Texture2D.MipLevels = 1;
 
 	_device->CreateShaderResourceView(
 		videoTexture,
@@ -156,20 +158,22 @@ void VideoQuad::Resize(int videoHeight, int videoWidth)
 	dxgiShareTexture->GetSharedHandle(&sharedHandle);
 	dxgiShareTexture->Release();
 
-	D3D11_SHADER_RESOURCE_VIEW_DESC const luminancePlaneDesc = CD3D11_SHADER_RESOURCE_VIEW_DESC(
-		videoTexture,
-		D3D11_SRV_DIMENSION_TEXTURE2D,
-		DXGI_FORMAT_R8_UNORM);
+	D3D11_SHADER_RESOURCE_VIEW_DESC luminancePlaneDesc = {};
+	luminancePlaneDesc.Format = DXGI_FORMAT_R8_UNORM;
+	luminancePlaneDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
+	luminancePlaneDesc.Texture2D.MostDetailedMip = 0;
+	luminancePlaneDesc.Texture2D.MipLevels = 1;
 
 	_device->CreateShaderResourceView(
 		videoTexture,
 		&luminancePlaneDesc,
 		&m_luminanceView);
 
-	D3D11_SHADER_RESOURCE_VIEW_DESC const chrominancePlaneDesc = CD3D11_SHADER_RESOURCE_VIEW_DESC(
-		videoTexture,
-		D3D11_SRV_DIMENSION_TEXTURE2D,
-		DXGI_FORMAT_R8G8_UNORM);
+	D3D11_SHADER_RESOURCE_VIEW_DESC chrominancePlaneDesc = {};
+	chrominancePlaneDesc.Format = DXGI_FORMAT_R8G8_UNORM;
+	chrominancePlaneDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
+	chrominancePlaneDesc.Texture2D.MostDetailedMip = 0;
+	chrominancePlaneDesc.Texture2D.MipLevels = 1;
 
 	_device->CreateShaderResourceView(
 		videoTexture,
