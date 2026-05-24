@@ -3,8 +3,9 @@
 #include "../platform/StringUtils.h"
 #include "../platform/CrashHandler.h"
 #include "../platform/StreamUtils.h"
-#include "../platform/ScreenCapture.h"
-#include "../playback/PlaybackController.h"
+#include "../source/FileSource.h"
+#include "../source/CaptureSource.h"
+#include "../source/PlaylistSource.h"
 
 #include <windowsx.h>
 #include <ShlObj.h>
@@ -67,13 +68,6 @@ STDMETHODIMP Application::Drop(IDataObject* pDataObj, DWORD grfKeyState, POINTL 
 // --- Drop Handlers -----------------------------------------------------------
 
 void Application::HandleFileDrop(IDataObject* pDataObj) {
-    // Loading a video replaces the current capture
-    if (m_captureState == CaptureState::Capturing ||
-        m_captureState == CaptureState::Picking || m_captureFrozen) {
-        m_captureFrozen = false;
-        StopCurrentCapture();
-    }
-
     FORMATETC fmt = {};
     fmt.cfFormat = CF_HDROP;
     fmt.dwAspect = DVASPECT_CONTENT;
@@ -87,8 +81,8 @@ void Application::HandleFileDrop(IDataObject* pDataObj) {
     wchar_t filePath[MAX_PATH];
     DragQueryFile(hDrop, 0, filePath, MAX_PATH);
 
-    auto* pc = m_playback.get();
-    if (!pc) { ReleaseStgMedium(&medium); return; }
+    auto* ctrl = m_controller.get();
+    if (!ctrl) { ReleaseStgMedium(&medium); return; }
 
     DWORD attrs = GetFileAttributesW(filePath);
     if (attrs != INVALID_FILE_ATTRIBUTES && (attrs & FILE_ATTRIBUTE_DIRECTORY)) {
@@ -117,29 +111,21 @@ void Application::HandleFileDrop(IDataObject* pDataObj) {
         enumerate(std::wstring(filePath));
         if (!playlist.empty()) {
             std::sort(playlist.begin(), playlist.end());
-            pc->SetPlaylist(playlist);
-            SetWindowTextW(m_window, TruncateFileNameForTitle(pc->GetCurrentFilePath()).c_str());
+            ctrl->SetSource(std::make_unique<PlaylistSource>(playlist, m_device));
         }
     } else {
         std::string utf8Path = w2u(filePath);
-        uint32_t ret = pc->LoadFile(utf8Path.c_str());
-        if (ret != 0) {
-            logger->error("LoadFile failed: {}", ret);
-        } else {
-            SetWindowTextW(m_window, TruncateFileNameForTitle(utf8Path).c_str());
-        }
+        ctrl->SetSource(std::make_unique<FileSource>(utf8Path.c_str(), m_device));
+    }
+
+    auto* src = ctrl->GetSource();
+    if (src) {
+        SetWindowTextW(m_window, u2w(src->GetTitle()).c_str());
     }
     ReleaseStgMedium(&medium);
 }
 
 void Application::HandleTextDrop(IDataObject* pDataObj) {
-    // Loading a stream/video replaces the current capture
-    if (m_captureState == CaptureState::Capturing ||
-        m_captureState == CaptureState::Picking || m_captureFrozen) {
-        m_captureFrozen = false;
-        StopCurrentCapture();
-    }
-
     FORMATETC fmt = {};
     fmt.cfFormat = CF_UNICODETEXT;
     fmt.dwAspect = DVASPECT_CONTENT;
@@ -158,71 +144,27 @@ void Application::HandleTextDrop(IDataObject* pDataObj) {
 
     if (text.empty()) return;
 
-    auto* pc = m_playback.get();
-    if (!pc) return;
+    auto* ctrl = m_controller.get();
+    if (!ctrl) return;
 
     if (IsStreamUri(text)) {
-        uint32_t ret = pc->LoadFile(text.c_str());
-        if (ret != 0) {
-            logger->error("LoadFile (URI) failed: {}", ret);
-        } else {
-            SetWindowTextW(m_window, TruncateFileNameForTitle(text).c_str());
-        }
+        ctrl->SetSource(std::make_unique<FileSource>(text.c_str(), m_device));
     } else {
-        // Treat as a file path (for text-dropped absolute paths)
-        uint32_t ret = pc->LoadFile(text.c_str());
-        if (ret != 0) {
-            logger->error("LoadFile failed: {}", ret);
-        } else {
-            SetWindowTextW(m_window, TruncateFileNameForTitle(text).c_str());
-        }
+        ctrl->SetSource(std::make_unique<FileSource>(text.c_str(), m_device));
+    }
+
+    auto* src = ctrl->GetSource();
+    if (src) {
+        SetWindowTextW(m_window, u2w(src->GetTitle()).c_str());
     }
 }
 
 // --- Capture ------------------------------------------------------------------
 
 void Application::StartCapturePicking() {
-    m_captureState = CaptureState::Picking;
+    m_pickingMode = true;
     SetCapture(m_window);
     logger->info("Capture picking mode: click a window to capture");
-}
-
-void Application::StopCurrentCapture() {
-    if (m_capture) {
-        m_capture->StopCapture();
-    }
-    m_captureTarget = nullptr;
-    m_captureState = CaptureState::Idle;
-    SetWindowTextW(m_window, L"D3D Video");
-}
-
-void Application::RenderCapture() {
-    if (!m_capture) return;
-
-    auto* vq = m_playback->GetVideoQuad();
-    auto& scm = m_playback->GetSwapChainMgr();
-
-    int width = m_capture->GetWidth();
-    int height = m_capture->GetHeight();
-    if (width <= 0 || height <= 0) return;
-
-    // BeginFrame must come first to set the render target (matches PlaybackController::Draw order)
-    scm.BeginFrame();
-    vq->BeginDraw();
-    RECT rect;
-    GetClientRect(m_window, &rect);
-    double srcRatio = (double)width / height;
-    double dstRatio = (double)rect.right / rect.bottom;
-    vq->UpdateByRatio(srcRatio, dstRatio);
-
-    // Only fetch new frames while capture is active; frozen mode re-renders last texture
-    if (m_capture->IsCapturing()) {
-        m_capture->ProcessFrame(m_deviceCtx, vq, width, height);
-    }
-
-    vq->DrawCapture();
-    scm.EndFrame();
-    ClipCursor(NULL);
 }
 
 // --- Application -------------------------------------------------------------
@@ -272,9 +214,8 @@ int Application::Run(HINSTANCE hInstance) {
     int clientWidth = clientRect.right - clientRect.left;
     int clientHeight = clientRect.bottom - clientRect.top;
 
-    m_playback = std::make_unique<PlaybackController>();
-    m_playback->Init(m_device, m_deviceCtx, m_swapChain, clientWidth, clientHeight);
-    SetWindowLongPtr(m_window, GWLP_USERDATA, (LONG_PTR)m_playback.get());
+    m_controller = std::make_unique<VideoController>();
+    m_controller->Init(m_device, m_deviceCtx, m_swapChain, clientWidth, clientHeight);
 
     MSG msg;
     while (1) {
@@ -283,24 +224,15 @@ int Application::Run(HINSTANCE hInstance) {
             if (msg.message == WM_QUIT) break;
             TranslateMessage(&msg);
             DispatchMessage(&msg);
-        } else if (m_captureState == CaptureState::Capturing || m_captureFrozen) {
-            // Detect if captured window was closed
-            if (m_captureTarget && !IsWindow(m_captureTarget)) {
-                logger->info("Capture target window closed, stopping capture");
-                m_captureFrozen = true;
-                StopCurrentCapture();
-            } else {
-                RenderCapture();
-            }
         } else {
-            m_playback->Render(m_window);
+            m_controller->Render(m_window);
         }
     }
 
     RevokeDragDrop(m_window);
     RoUninitialize();
     OleUninitialize();
-    m_playback.reset();
+    m_controller.reset();
     if (m_deviceCtx) m_deviceCtx->Release();
     if (m_swapChain) m_swapChain->Release();
     if (m_device) m_device->Release();
@@ -350,8 +282,8 @@ bool Application::InitD3D11(HWND window) {
 LRESULT CALLBACK Application::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
     switch (msg) {
     case WM_SIZE: {
-        auto* pc = (PlaybackController*)GetWindowLongPtr(hwnd, GWLP_USERDATA);
-        if (pc) {
+        auto* app = g_app;
+        if (app && app->m_controller) {
             auto width = GET_X_LPARAM(lParam);
             auto height = GET_Y_LPARAM(lParam);
             if ((GetWindowLongPtr(hwnd, GWL_STYLE) & (WS_VISIBLE | WS_POPUP | WS_CLIPSIBLINGS)) == (WS_VISIBLE | WS_POPUP | WS_CLIPSIBLINGS)) {
@@ -360,7 +292,7 @@ LRESULT CALLBACK Application::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM
                 width = width - (cr.right - cr.left - 100);
                 height = height - (cr.bottom - cr.top - 100);
             }
-            pc->ResizeSwapChain(width, height);
+            app->m_controller->ResizeSwapChain(width, height);
         }
         return 0;
     }
@@ -384,66 +316,50 @@ LRESULT CALLBACK Application::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM
         return DefWindowProc(hwnd, msg, wParam, lParam);
     }
     case WM_LBUTTONDOWN:
-        if (g_app && g_app->m_captureState == CaptureState::Picking) {
+        if (g_app && g_app->m_pickingMode) {
             ReleaseCapture();
-            
+            g_app->m_pickingMode = false;
+
             POINT pt = { GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam) };
             ClientToScreen(hwnd, &pt);
             HWND targetHwnd = WindowFromPoint(pt);
             if (targetHwnd && targetHwnd != hwnd) {
-                if (!g_app->m_capture) {
-                    g_app->m_capture = std::make_unique<ScreenCapture>();
-                }
                 logger->info("Capture: attempting to capture HWND=0x{:X}", (uint64_t)targetHwnd);
-                if (g_app->m_capture->StartCapture(targetHwnd, g_app->m_device)) {
-                    g_app->m_captureState = CaptureState::Capturing;
-                    g_app->m_captureFrozen = false;
-                    g_app->m_captureTarget = targetHwnd;
-                    auto* vq = g_app->m_playback->GetVideoQuad();
-                    vq->InitCapture(g_app->m_capture->GetWidth(), g_app->m_capture->GetHeight());
-                    wchar_t title[256];
-                    GetWindowTextW(targetHwnd, title, 256);
-                    SetWindowTextW(hwnd, (L"Capturing: " + std::wstring(title)).c_str());
-                    logger->info("Capture started: {}x{}, title='{}'", g_app->m_capture->GetWidth(), g_app->m_capture->GetHeight(), w2u(title));
+
+                auto captureSource = std::make_unique<CaptureSource>(targetHwnd, g_app->m_device);
+
+                g_app->m_controller->SetSource(std::move(captureSource));
+                auto* src = g_app->m_controller->GetSource();
+                if (src) {
+                    // Must call InitCapture AFTER SetSource so we know the actual capture size.
+                    // If the capture texture size doesn't match the frame pool texture size,
+                    // CopySubresourceRegion in ProcessFrame would produce garbled output.
+                    auto* vq = g_app->m_controller->GetVideoQuad();
+                    vq->InitCapture(src->GetWidth(), src->GetHeight());
+                    SetWindowTextW(hwnd, (L"Capturing: " + u2w(src->GetTitle())).c_str());
+                    logger->info("Capture started: {}x{}", src->GetWidth(), src->GetHeight());
                 } else {
-                    g_app->m_captureState = CaptureState::Idle;
-                    g_app->m_captureFrozen = false;
-                    g_app->m_capture.reset();
                     SetWindowTextW(hwnd, L"D3D Video");
                 }
             } else {
                 logger->info("Capture: target window is self or null (0x{:X})", (uint64_t)targetHwnd);
-                g_app->m_captureState = CaptureState::Idle;
             }
             break;
         }
         break;
     case WM_KEYDOWN:
-        // Capture hotkeys
         if (wParam == VK_ESCAPE) {
-            if (g_app && g_app->m_captureState == CaptureState::Capturing) {
-                g_app->m_captureFrozen = true;
-                g_app->StopCurrentCapture();
-            } else if (g_app && g_app->m_captureState == CaptureState::Picking) {
+            if (g_app && g_app->m_pickingMode) {
                 ReleaseCapture();
-                
-                // If we entered picking from an active capture, restore it
-                if (g_app->m_capture && g_app->m_capture->IsCapturing()) {
-                    g_app->m_captureState = CaptureState::Capturing;
-                } else {
-                    g_app->m_captureState = CaptureState::Idle;
-                }
+                g_app->m_pickingMode = false;
+            } else if (g_app && g_app->m_controller && g_app->m_controller->GetSource()) {
+                g_app->m_controller->StopSource();
+                SetWindowTextW(hwnd, L"D3D Video");
             }
         }
         if (wParam == 0x43 && (GetKeyState(VK_CONTROL) & 0x8000) && (GetKeyState(VK_SHIFT) & 0x8000)) {
             if (g_app) {
-                if (g_app->m_captureState == CaptureState::Capturing) {
-                    // Directly enter picking mode without stopping current capture.
-                    // Selecting a new window will replace the capture automatically.
-                    g_app->StartCapturePicking();
-                } else if (g_app->m_captureState == CaptureState::Idle) {
-                    g_app->StartCapturePicking();
-                }
+                g_app->StartCapturePicking();
             }
             break;
         }

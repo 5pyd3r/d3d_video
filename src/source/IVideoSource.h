@@ -12,11 +12,13 @@ struct VideoFrame {
     SourceType type = SourceType::File;
 };
 
+namespace nv { class VideoQuad; }
+
 class IVideoSource {
 public:
     virtual ~IVideoSource() = default;
     virtual bool Init() = 0;
-    virtual bool ReadFrame(VideoFrame& out) = 0;
+    virtual bool ReadFrame(VideoFrame& out, ID3D11DeviceContext* ctx, nv::VideoQuad* vq) = 0;
     virtual void Close() = 0;
     virtual SourceType GetType() const = 0;
     virtual int GetWidth() const = 0;

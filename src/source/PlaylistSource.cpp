@@ -23,17 +23,17 @@ bool PlaylistSource::OpenCurrent() {
     return false;
 }
 
-bool PlaylistSource::ReadFrame(VideoFrame& out) {
+bool PlaylistSource::ReadFrame(VideoFrame& out, ID3D11DeviceContext* ctx, nv::VideoQuad* vq) {
     if (!m_currentSource) return false;
 
-    if (m_currentSource->ReadFrame(out)) return true;
+    if (m_currentSource->ReadFrame(out, ctx, vq)) return true;
 
     // Current file ended — try next
     if (m_index + 1 < m_files.size()) {
         m_currentSource.reset();
         m_index++;
         if (OpenCurrent())
-            return m_currentSource->ReadFrame(out);
+            return m_currentSource->ReadFrame(out, ctx, vq);
     }
     return false;  // Playlist exhausted
 }

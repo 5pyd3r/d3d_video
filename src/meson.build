@@ -23,7 +23,7 @@ render_src = files(
 )
 
 playback_src = files(
-    'playback/PlaybackController.cpp',
+    'playback/VideoController.cpp',
     'playback/TextureUpdater.cpp',
 )
 

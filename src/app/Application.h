@@ -8,11 +8,7 @@
 
 #include <memory>
 
-#include "../playback/PlaybackController.h"
-
-#include "../platform/ScreenCapture.h"
-
-enum class CaptureState { Idle, Picking, Capturing };
+#include "../playback/VideoController.h"
 
 class Application : public IDropTarget {
 public:
@@ -37,19 +33,14 @@ private:
     void HandleFileDrop(IDataObject* pDataObj);
     void HandleTextDrop(IDataObject* pDataObj);
     void StartCapturePicking();
-    void StopCurrentCapture();
-    void RenderCapture();
 
     IDXGISwapChain* m_swapChain = nullptr;
     ID3D11Device* m_device = nullptr;
     ID3D11DeviceContext* m_deviceCtx = nullptr;
-    std::unique_ptr<PlaybackController> m_playback;
-    std::unique_ptr<ScreenCapture> m_capture;
+    std::unique_ptr<VideoController> m_controller;
     HWND m_window = nullptr;
     ULONG m_refCount = 1;
-    CaptureState m_captureState = CaptureState::Idle;
-    HWND m_captureTarget = nullptr;
-    bool m_captureFrozen = false;
+    bool m_pickingMode = false;
 };
 
 #endif

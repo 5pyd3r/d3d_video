@@ -2,7 +2,6 @@
 #define PLAYBACK_VIDEOCONTROLLER_H
 
 #include <cstdint>
-#include <chrono>
 #include <memory>
 #include <d3d11.h>
 #include "../source/IVideoSource.h"
@@ -24,13 +23,14 @@ public:
     uint32_t Render(HWND hwnd);
     void ResizeSwapChain(int width, int height);
     PlayState GetState() const { return m_state; }
+
+    IVideoSource* GetSource() const { return m_source.get(); }
     nv::VideoQuad* GetVideoQuad() const { return m_vq.get(); }
     SwapChainManager& GetSwapChainMgr() { return m_swapChainMgr; }
 
 private:
     void Draw(HWND hwnd);
-    void DrawFileFrame(HWND hwnd, VideoFrame& frame);
-    void DrawCaptureFrame(HWND hwnd, VideoFrame& frame);
+    void DrawCapture(HWND hwnd);
 
     std::unique_ptr<IVideoSource> m_source;
     SwapChainManager m_swapChainMgr;
@@ -45,7 +45,6 @@ private:
     int m_viewHeight;
 
     PlayState m_state = PlayState::Stop;
-    std::wstring m_lastWindowTitle;
 };
 
 #endif

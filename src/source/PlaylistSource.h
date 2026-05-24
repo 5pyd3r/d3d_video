@@ -14,7 +14,7 @@ public:
     ~PlaylistSource() override;
 
     bool Init() override;
-    bool ReadFrame(VideoFrame& out) override;
+    bool ReadFrame(VideoFrame& out, ID3D11DeviceContext* ctx, nv::VideoQuad* vq) override;
     void Close() override;
     SourceType GetType() const override { return SourceType::File; }
     int GetWidth() const override;

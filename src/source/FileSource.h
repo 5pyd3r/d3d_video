@@ -4,6 +4,7 @@
 #include "IVideoSource.h"
 #include "MediaSource.h"
 #include "../decode/VideoDecoder.h"
+#include <chrono>
 #include <string>
 
 class FileSource : public IVideoSource {
@@ -12,7 +13,7 @@ public:
     ~FileSource() override;
 
     bool Init() override;
-    bool ReadFrame(VideoFrame& out) override;
+    bool ReadFrame(VideoFrame& out, ID3D11DeviceContext* ctx, nv::VideoQuad* vq) override;
     void Close() override;
     SourceType GetType() const override { return SourceType::File; }
     int GetWidth() const override { return m_width; }

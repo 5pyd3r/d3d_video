@@ -1,5 +1,7 @@
 #include "FileSource.h"
 #include "../platform/Logger.h"
+#include "../playback/TextureUpdater.h"
+#include "../render/VideoQuad.h"
 
 extern "C" {
 #include <libavcodec/avcodec.h>
@@ -36,7 +38,7 @@ bool FileSource::Init() {
     return true;
 }
 
-bool FileSource::ReadFrame(VideoFrame& out) {
+bool FileSource::ReadFrame(VideoFrame& out, ID3D11DeviceContext* ctx, nv::VideoQuad* vq) {
     auto now = std::chrono::steady_clock::now();
     std::chrono::duration<double> elapsed = now - m_startTime;
     double presentTime = elapsed.count();
@@ -74,9 +76,13 @@ bool FileSource::ReadFrame(VideoFrame& out) {
 
     if (!m_frame || !m_frame->data[0]) return false;
 
+    // Copy decoded NV12 hardware frame into VideoQuad's shared texture
+    HANDLE sharedHandle = vq->GetsharedHandle();
+    TextureUpdater::Update(ctx, sharedHandle, m_frame, m_width, m_height, vq);
+
     out.texture = (ID3D11Texture2D*)m_frame->data[0];
-    out.width = m_frame->width;
-    out.height = m_frame->height;
+    out.width = m_width;
+    out.height = m_height;
     out.type = SourceType::File;
     return true;
 }

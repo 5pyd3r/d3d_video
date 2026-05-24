@@ -3,6 +3,7 @@
 
 #include "IVideoSource.h"
 #include "../platform/ScreenCapture.h"
+#include <string>
 
 class CaptureSource : public IVideoSource {
 public:
@@ -10,18 +11,22 @@ public:
     ~CaptureSource() override;
 
     bool Init() override;
-    bool ReadFrame(VideoFrame& out) override;
+    bool ReadFrame(VideoFrame& out, ID3D11DeviceContext* ctx, nv::VideoQuad* vq) override;
     void Close() override;
     SourceType GetType() const override { return SourceType::Capture; }
-    int GetWidth() const override { return m_capture.GetWidth(); }
-    int GetHeight() const override { return m_capture.GetHeight(); }
-    const char* GetTitle() const override { return "Capture"; }
+    int GetWidth() const override { return m_width; }
+    int GetHeight() const override { return m_height; }
+    const char* GetTitle() const override { return m_title.c_str(); }
+
+    HWND GetTargetWindow() const { return m_targetWindow; }
 
 private:
     HWND m_targetWindow;
     ID3D11Device* m_device;
     ScreenCapture m_capture;
     std::string m_title;
+    int m_width = 0;
+    int m_height = 0;
 };
 
 #endif
