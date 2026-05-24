@@ -24,6 +24,7 @@ public:
     virtual int GetWidth() const = 0;
     virtual int GetHeight() const = 0;
     virtual const char* GetTitle() const = 0;
+    virtual double GetFrameDuration() const { return 1.0 / 30.0; }
 };
 
 #endif

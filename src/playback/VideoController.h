@@ -2,6 +2,7 @@
 #define PLAYBACK_VIDEOCONTROLLER_H
 
 #include <cstdint>
+#include <chrono>
 #include <memory>
 #include <d3d11.h>
 #include "../source/IVideoSource.h"
@@ -43,6 +44,10 @@ private:
     int m_videoHeight = 600;
     int m_viewWidth;
     int m_viewHeight;
+
+    int m_frameCount = 0;
+    double m_frameDuration = 1.0 / 30.0;
+    std::chrono::steady_clock::time_point m_startTime;
 
     PlayState m_state = PlayState::Stop;
 };
