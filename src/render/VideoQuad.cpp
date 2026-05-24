@@ -7,9 +7,6 @@
 using namespace nv;
 namespace dx = DirectX;
 
-ID3D11Texture2D *VideoQuad::videoTexture;
-HANDLE VideoQuad::sharedHandle;
-
 VideoQuad::VideoQuad(
 	ID3D11Device* device,
 	ID3D11DeviceContext* deviceCtx,
@@ -17,24 +14,22 @@ VideoQuad::VideoQuad(
 	int videoHeight)
 	: _device(device), _deviceCtx(deviceCtx)
 {
-	if (videoTexture == nullptr) {
-		D3D11_TEXTURE2D_DESC tdesc = {};
-		tdesc.Format = DXGI_FORMAT_NV12;
-		tdesc.Usage = D3D11_USAGE_DEFAULT;
-		tdesc.MiscFlags = D3D11_RESOURCE_MISC_SHARED;
-		tdesc.ArraySize = 1;
-		tdesc.MipLevels = 1;
-		tdesc.SampleDesc.Count = 1;
-		tdesc.Height = videoHeight;
-		tdesc.Width = videoWidth;
-		tdesc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
-		_device->CreateTexture2D(&tdesc, nullptr, &videoTexture);
+	D3D11_TEXTURE2D_DESC tdesc = {};
+	tdesc.Format = DXGI_FORMAT_NV12;
+	tdesc.Usage = D3D11_USAGE_DEFAULT;
+	tdesc.MiscFlags = D3D11_RESOURCE_MISC_SHARED;
+	tdesc.ArraySize = 1;
+	tdesc.MipLevels = 1;
+	tdesc.SampleDesc.Count = 1;
+	tdesc.Height = videoHeight;
+	tdesc.Width = videoWidth;
+	tdesc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+	_device->CreateTexture2D(&tdesc, nullptr, &videoTexture);
 
-		IDXGIResource *dxgiShareTexture;
-		videoTexture->QueryInterface(__uuidof(IDXGIResource), (void **)&dxgiShareTexture);
-		dxgiShareTexture->GetSharedHandle(&sharedHandle);
-		dxgiShareTexture->Release();
-	}
+	IDXGIResource *dxgiShareTexture;
+	videoTexture->QueryInterface(__uuidof(IDXGIResource), (void **)&dxgiShareTexture);
+	dxgiShareTexture->GetSharedHandle(&sharedHandle);
+	dxgiShareTexture->Release();
 
 	D3D11_SHADER_RESOURCE_VIEW_DESC luminancePlaneDesc = {};
 	luminancePlaneDesc.Format = DXGI_FORMAT_R8_UNORM;
@@ -113,38 +108,22 @@ VideoQuad::VideoQuad(
 VideoQuad::~VideoQuad()
 {
 	m_luminanceView->Release();
-	m_luminanceView = nullptr;
 	m_chrominanceView->Release();
-	m_chrominanceView = nullptr;
+	if (videoTexture) videoTexture->Release();
 	pVertexBuffer->Release();
-	pVertexBuffer = nullptr;
 	pIndexBuffer->Release();
-	pIndexBuffer = nullptr;
 	pConstantBuffer->Release();
-	pConstantBuffer = nullptr;
 	pInputLayout->Release();
-	pInputLayout = nullptr;
 	pVertexShader->Release();
-	pVertexShader = nullptr;
 	pPixelShader->Release();
-	pPixelShader = nullptr;
 	pSampler->Release();
-	pSampler = nullptr;
 }
 
 void VideoQuad::Resize(int videoHeight, int videoWidth)
 {
-	// Release old D3D11 resources
 	if (videoTexture) { videoTexture->Release(); videoTexture = nullptr; }
 	if (m_luminanceView) { m_luminanceView->Release(); m_luminanceView = nullptr; }
 	if (m_chrominanceView) { m_chrominanceView->Release(); m_chrominanceView = nullptr; }
-	if (pVertexBuffer) { pVertexBuffer->Release(); pVertexBuffer = nullptr; }
-	if (pIndexBuffer) { pIndexBuffer->Release(); pIndexBuffer = nullptr; }
-	if (pConstantBuffer) { pConstantBuffer->Release(); pConstantBuffer = nullptr; }
-	if (pInputLayout) { pInputLayout->Release(); pInputLayout = nullptr; }
-	if (pVertexShader) { pVertexShader->Release(); pVertexShader = nullptr; }
-	if (pPixelShader) { pPixelShader->Release(); pPixelShader = nullptr; }
-	if (pSampler) { pSampler->Release(); pSampler = nullptr; }
 
 	D3D11_TEXTURE2D_DESC tdesc = {};
 	tdesc.Format = DXGI_FORMAT_NV12;
@@ -184,55 +163,6 @@ void VideoQuad::Resize(int videoHeight, int videoWidth)
 		videoTexture,
 		&chrominancePlaneDesc,
 		&m_chrominanceView);
-
-	D3D11_BUFFER_DESC bd = {};
-	bd.BindFlags = D3D11_BIND_VERTEX_BUFFER;
-	bd.ByteWidth = sizeof(vertices);
-	bd.StructureByteStride = sizeof(Vertex);
-	D3D11_SUBRESOURCE_DATA sd = {};
-	sd.pSysMem = vertices;
-	_device->CreateBuffer(&bd, &sd, &pVertexBuffer);
-
-	const UINT16 indices[] = {
-		0, 1, 2, 0, 2, 3};
-	indicesSize = sizeof(indices);
-
-	D3D11_BUFFER_DESC ibd = {};
-	ibd.BindFlags = D3D11_BIND_INDEX_BUFFER;
-	ibd.ByteWidth = sizeof(indices);
-	ibd.StructureByteStride = sizeof(UINT16);
-	D3D11_SUBRESOURCE_DATA isd = {};
-	isd.pSysMem = indices;
-	_device->CreateBuffer(&ibd, &isd, &pIndexBuffer);
-
-	D3D11_BUFFER_DESC cbd = {};
-	cbd.Usage = D3D11_USAGE_DYNAMIC;
-	cbd.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
-	cbd.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
-	cbd.ByteWidth = sizeof(constant);
-	cbd.StructureByteStride = 0;
-	D3D11_SUBRESOURCE_DATA csd = {};
-	csd.pSysMem = &constant;
-	_device->CreateBuffer(&cbd, &csd, &pConstantBuffer);
-
-	D3D11_INPUT_ELEMENT_DESC ied[] = {
-		{"POSITION", 0, DXGI_FORMAT::DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0},
-		{"TexCoord", 0, DXGI_FORMAT::DXGI_FORMAT_R32G32_FLOAT, 0, 12, D3D11_INPUT_PER_VERTEX_DATA, 0}};
-	_device->CreateInputLayout(ied, std::size(ied), g_vs, sizeof(g_vs), &pInputLayout);
-
-	_device->CreateVertexShader(g_vs, sizeof(g_vs), nullptr, &pVertexShader);
-
-	_device->CreatePixelShader(g_ps, sizeof(g_ps), nullptr, &pPixelShader);
-
-	D3D11_SAMPLER_DESC samplerDesc = {};
-	samplerDesc.Filter = D3D11_FILTER::D3D11_FILTER_ANISOTROPIC;
-	samplerDesc.AddressU = D3D11_TEXTURE_ADDRESS_WRAP;
-	samplerDesc.AddressV = D3D11_TEXTURE_ADDRESS_WRAP;
-	samplerDesc.AddressW = D3D11_TEXTURE_ADDRESS_WRAP;
-
-	_device->CreateSamplerState(&samplerDesc, &pSampler);
-
-	transformMatrix = dx::XMMatrixRotationX(0);
 }
 
 void nv::VideoQuad::MulTransformMatrix(const DirectX::XMMATRIX& matrix)

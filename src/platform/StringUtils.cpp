@@ -83,7 +83,12 @@ std::wstring TruncateFileNameForTitle(const std::string& filePath, size_t maxLen
         return nameWithoutExt + L"..." + ext;
     }
 
-    size_t keepStart = maxLen - 3 - keepEnd - ext.length();
+    size_t keepStart;
+    if (maxLen <= keepEnd + 3 + ext.length()) {
+        keepStart = 1;
+    } else {
+        keepStart = maxLen - 3 - keepEnd - ext.length();
+    }
     if (keepStart < 1) keepStart = 1;
     if (keepStart > nameWithoutExt.length() - keepEnd)
         keepStart = nameWithoutExt.length() - keepEnd;

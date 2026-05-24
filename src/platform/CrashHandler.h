@@ -5,6 +5,7 @@
 #include <DbgHelp.h>
 
 void InitCrashHandler();
+void ShutdownCrashHandler();
 LONG WINAPI ExceptionHandler(PEXCEPTION_POINTERS pExceptionInfo);
 void LogStackTrace(PCONTEXT context);
 void LogRegisterState(PCONTEXT pContext);

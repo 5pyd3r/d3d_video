@@ -54,7 +54,6 @@ void PlaybackController::SetPlaylist(const std::vector<std::string>& files) {
     m_playlist = files;
     m_playlistIndex = 0;
     av_frame_free(&m_frame);
-    m_frame = nullptr;
     m_decoder.Close();
     m_source.Close();
     if (!files.empty()) {
@@ -101,7 +100,6 @@ uint32_t PlaybackController::Render(HWND hwnd) {
             AVPacket* packet = m_source.ReadPacket();
             if (!packet) {
                 av_frame_free(&m_frame);
-                m_frame = nullptr;
                 break;
             }
 

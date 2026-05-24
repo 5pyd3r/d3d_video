@@ -41,10 +41,17 @@ uint32_t VideoDecoder::Init(AVFormatContext* fmtCtx, double& avg_frame_rate, ID3
                     d3dCtx->device = d3dDevice;
                     d3dDevice->AddRef();
                     d3dDevice->GetImmediateContext(&d3dCtx->device_context);
-                    av_hwdevice_ctx_init(hw_device_ctx);
+                    int ret = av_hwdevice_ctx_init(hw_device_ctx);
+                    if (ret < 0) {
+                        logger->error("av_hwdevice_ctx_init failed: {}", ret);
+                        av_buffer_unref(&hw_device_ctx);
+                    }
                 }
             } else {
-                av_hwdevice_ctx_create(&hw_device_ctx, AV_HWDEVICE_TYPE_D3D11VA, NULL, NULL, NULL);
+                int ret = av_hwdevice_ctx_create(&hw_device_ctx, AV_HWDEVICE_TYPE_D3D11VA, NULL, NULL, NULL);
+                if (ret < 0) {
+                    logger->error("av_hwdevice_ctx_create failed: {}", ret);
+                }
             }
             if (hw_device_ctx) {
                 vcodecCtx->hw_device_ctx = hw_device_ctx;

@@ -212,3 +212,8 @@ void InitCrashHandler() {
 
     SetUnhandledExceptionFilter(ExceptionHandler);
 }
+
+void ShutdownCrashHandler() {
+	SymCleanup(GetCurrentProcess());
+}
+
