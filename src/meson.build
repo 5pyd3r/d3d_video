@@ -8,6 +8,9 @@ platform_src = files(
 
 source_src = files(
     'source/MediaSource.cpp',
+    'source/FileSource.cpp',
+    'source/CaptureSource.cpp',
+    'source/PlaylistSource.cpp',
 )
 
 decode_src = files(
