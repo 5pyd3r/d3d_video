@@ -1,4 +1,5 @@
 #include "StringUtils.h"
+#include <algorithm>
 
 std::string w2s(const std::wstring& wstr) {
     int len = WideCharToMultiByte(CP_ACP, 0, wstr.c_str(), (int)wstr.size(), NULL, 0, NULL, NULL);
@@ -39,4 +40,22 @@ std::string GetLastErrorMessage(DWORD errorCode) {
         message.pop_back();
 
     return message;
+}
+
+bool IsVideoFile(const std::string& path) {
+    static const std::string kExtensions[] = {
+        ".mp4", ".avi", ".mkv", ".mov", ".wmv",
+        ".webm", ".flv", ".ts", ".m4v", ".mpg", ".mpeg"
+    };
+
+    auto dot = path.rfind('.');
+    if (dot == std::string::npos) return false;
+
+    std::string ext = path.substr(dot);
+    std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
+
+    for (const auto& known : kExtensions) {
+        if (ext == known) return true;
+    }
+    return false;
 }

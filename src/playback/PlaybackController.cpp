@@ -48,6 +48,18 @@ uint32_t PlaybackController::LoadFile(const char* filePath) {
     return 0;
 }
 
+void PlaybackController::SetPlaylist(const std::vector<std::string>& files) {
+    m_playlist = files;
+    m_playlistIndex = 0;
+    av_frame_free(&m_frame);
+    m_frame = nullptr;
+    m_decoder.Close();
+    m_source.Close();
+    if (!files.empty()) {
+        LoadFile(files[0].c_str());
+    }
+}
+
 void PlaybackController::ResizeSwapChain(int width, int height) {
     m_viewWidth = width;
     m_viewHeight = height;
@@ -114,6 +126,11 @@ uint32_t PlaybackController::Render(HWND hwnd) {
         }
 
         if (m_frame == nullptr) {
+            if (m_playlistIndex >= 0 && m_playlistIndex + 1 < (int)m_playlist.size()) {
+                m_playlistIndex++;
+                LoadFile(m_playlist[m_playlistIndex].c_str());
+                return 0;
+            }
             m_state = PlayState::Stop;
             return 0;
         }

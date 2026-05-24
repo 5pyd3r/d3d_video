@@ -7,5 +7,6 @@
 std::string w2s(const std::wstring& wstr);
 std::string w2u(const std::wstring& wstr);
 std::string GetLastErrorMessage(DWORD errorCode = GetLastError());
+bool IsVideoFile(const std::string& path);
 
 #endif

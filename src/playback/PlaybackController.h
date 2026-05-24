@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <chrono>
 #include <memory>
+#include <vector>
 #include <d3d11.h>
 #include "../source/MediaSource.h"
 #include "../decode/VideoDecoder.h"
@@ -21,6 +22,7 @@ public:
               IDXGISwapChain* swapChain, int viewWidth, int viewHeight);
 
     uint32_t LoadFile(const char* filePath);
+    void SetPlaylist(const std::vector<std::string>& files);
     uint32_t Render(HWND hwnd);
     void ResizeSwapChain(int width, int height);
     PlayState GetState() const { return m_state; }
@@ -45,6 +47,8 @@ private:
     int m_frameCount = 0;
     double m_frameDuration;
     PlayState m_state = PlayState::Stop;
+    std::vector<std::string> m_playlist;
+    int m_playlistIndex = -1;
     std::chrono::steady_clock::time_point m_startTime;
 };
 
