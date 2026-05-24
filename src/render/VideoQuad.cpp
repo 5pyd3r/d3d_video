@@ -134,12 +134,17 @@ VideoQuad::~VideoQuad()
 
 void VideoQuad::Resize(int videoHeight, int videoWidth)
 {
-	videoTexture->Release();
-	videoTexture = nullptr;
-	m_luminanceView->Release();
-	m_luminanceView = nullptr;
-	m_chrominanceView->Release();
-	m_chrominanceView = nullptr;
+	// Release old D3D11 resources
+	if (videoTexture) { videoTexture->Release(); videoTexture = nullptr; }
+	if (m_luminanceView) { m_luminanceView->Release(); m_luminanceView = nullptr; }
+	if (m_chrominanceView) { m_chrominanceView->Release(); m_chrominanceView = nullptr; }
+	if (pVertexBuffer) { pVertexBuffer->Release(); pVertexBuffer = nullptr; }
+	if (pIndexBuffer) { pIndexBuffer->Release(); pIndexBuffer = nullptr; }
+	if (pConstantBuffer) { pConstantBuffer->Release(); pConstantBuffer = nullptr; }
+	if (pInputLayout) { pInputLayout->Release(); pInputLayout = nullptr; }
+	if (pVertexShader) { pVertexShader->Release(); pVertexShader = nullptr; }
+	if (pPixelShader) { pPixelShader->Release(); pPixelShader = nullptr; }
+	if (pSampler) { pSampler->Release(); pSampler = nullptr; }
 
 	D3D11_TEXTURE2D_DESC tdesc = {};
 	tdesc.Format = DXGI_FORMAT_NV12;
