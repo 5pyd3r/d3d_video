@@ -2,6 +2,7 @@ platform_src = files(
     'platform/StringUtils.cpp',
     'platform/Logger.cpp',
     'platform/CrashHandler.cpp',
+    'platform/StreamUtils.cpp',
 )
 
 source_src = files(

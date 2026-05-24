@@ -1,5 +1,11 @@
 gtest_dep = dependency('gtest', main: true, fallback: ['gtest', 'gtest_main_dep'])
 
+test('StreamUtils',
+    executable('test_stream_utils',
+        'platform/StreamUtils_test.cpp',
+        '../src/platform/StreamUtils.cpp',
+        dependencies: [gtest_dep]))
+
 test('StringUtils',
     executable('test_string_utils',
         'platform/StringUtils_test.cpp',

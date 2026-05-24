@@ -2,6 +2,7 @@
 #include "../platform/Logger.h"
 #include "../platform/StringUtils.h"
 #include "../platform/CrashHandler.h"
+#include "../platform/StreamUtils.h"
 #include "../playback/PlaybackController.h"
 
 #include <windowsx.h>
@@ -16,11 +17,157 @@
 static bool g_isFullscreen = false;
 static RECT g_windowedRect;
 
+// --- IUnknown ----------------------------------------------------------------
+
+STDMETHODIMP Application::QueryInterface(REFIID riid, void** ppvObject) {
+    if (riid == IID_IUnknown || riid == IID_IDropTarget) {
+        *ppvObject = static_cast<IDropTarget*>(this);
+        AddRef();
+        return S_OK;
+    }
+    *ppvObject = nullptr;
+    return E_NOINTERFACE;
+}
+
+STDMETHODIMP_(ULONG) Application::AddRef() {
+    return InterlockedIncrement(&m_refCount);
+}
+
+STDMETHODIMP_(ULONG) Application::Release() {
+    ULONG count = InterlockedDecrement(&m_refCount);
+    return count;
+}
+
+// --- IDropTarget -------------------------------------------------------------
+
+STDMETHODIMP Application::DragEnter(IDataObject* pDataObj, DWORD grfKeyState, POINTL pt, DWORD* pdwEffect) {
+    *pdwEffect = DROPEFFECT_COPY;
+    return S_OK;
+}
+
+STDMETHODIMP Application::DragOver(DWORD grfKeyState, POINTL pt, DWORD* pdwEffect) {
+    *pdwEffect = DROPEFFECT_COPY;
+    return S_OK;
+}
+
+STDMETHODIMP Application::DragLeave() {
+    return S_OK;
+}
+
+STDMETHODIMP Application::Drop(IDataObject* pDataObj, DWORD grfKeyState, POINTL pt, DWORD* pdwEffect) {
+    *pdwEffect = DROPEFFECT_COPY;
+    HandleFileDrop(pDataObj);
+    HandleTextDrop(pDataObj);
+    return S_OK;
+}
+
+// --- Drop Handlers -----------------------------------------------------------
+
+void Application::HandleFileDrop(IDataObject* pDataObj) {
+    FORMATETC fmt = {};
+    fmt.cfFormat = CF_HDROP;
+    fmt.dwAspect = DVASPECT_CONTENT;
+    fmt.lindex = -1;
+    fmt.tymed = TYMED_HGLOBAL;
+
+    STGMEDIUM medium = {};
+    if (FAILED(pDataObj->GetData(&fmt, &medium))) return;
+
+    HDROP hDrop = (HDROP)medium.hGlobal;
+    wchar_t filePath[MAX_PATH];
+    DragQueryFile(hDrop, 0, filePath, MAX_PATH);
+
+    auto* pc = m_playback.get();
+    if (!pc) { ReleaseStgMedium(&medium); return; }
+
+    DWORD attrs = GetFileAttributesW(filePath);
+    if (attrs != INVALID_FILE_ATTRIBUTES && (attrs & FILE_ATTRIBUTE_DIRECTORY)) {
+        std::vector<std::string> playlist;
+        std::function<void(const std::wstring&)> enumerate =
+            [&](const std::wstring& dir) {
+            std::wstring searchPath = dir + L"\\*";
+            WIN32_FIND_DATAW fd;
+            HANDLE hFind = FindFirstFileW(searchPath.c_str(), &fd);
+            if (hFind == INVALID_HANDLE_VALUE) return;
+            do {
+                if (wcscmp(fd.cFileName, L".") == 0 ||
+                    wcscmp(fd.cFileName, L"..") == 0) continue;
+                std::wstring fullPath = dir + L"\\" + fd.cFileName;
+                if (fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
+                    enumerate(fullPath);
+                } else {
+                    std::string utf8Path = w2u(fullPath);
+                    if (IsVideoFile(utf8Path)) {
+                        playlist.push_back(utf8Path);
+                    }
+                }
+            } while (FindNextFileW(hFind, &fd));
+            FindClose(hFind);
+        };
+        enumerate(std::wstring(filePath));
+        if (!playlist.empty()) {
+            std::sort(playlist.begin(), playlist.end());
+            pc->SetPlaylist(playlist);
+            SetWindowTextW(m_window, TruncateFileNameForTitle(pc->GetCurrentFilePath()).c_str());
+        }
+    } else {
+        std::string utf8Path = w2u(filePath);
+        uint32_t ret = pc->LoadFile(utf8Path.c_str());
+        if (ret != 0) {
+            logger->error("LoadFile failed: {}", ret);
+        } else {
+            SetWindowTextW(m_window, TruncateFileNameForTitle(utf8Path).c_str());
+        }
+    }
+    ReleaseStgMedium(&medium);
+}
+
+void Application::HandleTextDrop(IDataObject* pDataObj) {
+    FORMATETC fmt = {};
+    fmt.cfFormat = CF_UNICODETEXT;
+    fmt.dwAspect = DVASPECT_CONTENT;
+    fmt.lindex = -1;
+    fmt.tymed = TYMED_HGLOBAL;
+
+    STGMEDIUM medium = {};
+    if (FAILED(pDataObj->GetData(&fmt, &medium))) return;
+
+    const wchar_t* wtext = (const wchar_t*)GlobalLock(medium.hGlobal);
+    if (!wtext) { ReleaseStgMedium(&medium); return; }
+
+    std::string text = TrimString(w2u(wtext));
+    GlobalUnlock(medium.hGlobal);
+    ReleaseStgMedium(&medium);
+
+    if (text.empty()) return;
+
+    auto* pc = m_playback.get();
+    if (!pc) return;
+
+    if (IsStreamUri(text)) {
+        uint32_t ret = pc->LoadFile(text.c_str());
+        if (ret != 0) {
+            logger->error("LoadFile (URI) failed: {}", ret);
+        } else {
+            SetWindowTextW(m_window, TruncateFileNameForTitle(text).c_str());
+        }
+    } else {
+        // Treat as a file path (for text-dropped absolute paths)
+        uint32_t ret = pc->LoadFile(text.c_str());
+        if (ret != 0) {
+            logger->error("LoadFile failed: {}", ret);
+        } else {
+            SetWindowTextW(m_window, TruncateFileNameForTitle(text).c_str());
+        }
+    }
+}
+
+// --- Application -------------------------------------------------------------
+
 Application::~Application() = default;
 
 int Application::Run(HINSTANCE hInstance) {
     InitCrashHandler();
-    CoInitializeEx(NULL, COINIT::COINIT_MULTITHREADED);
     SetProcessDPIAware();
     InitLogger();
 
@@ -37,11 +184,18 @@ int Application::Run(HINSTANCE hInstance) {
         DEFAULT_WINDOW_WIDTH, DEFAULT_WINDOW_HEIGHT,
         NULL, NULL, hInstance, NULL);
 
-    DragAcceptFiles(m_window, TRUE);
+    OleInitialize(NULL);
+    HRESULT hrDrag = RegisterDragDrop(m_window, static_cast<IDropTarget*>(this));
+    if (FAILED(hrDrag)) {
+        logger->warn("RegisterDragDrop failed: 0x{:08X}, drag-drop disabled", (uint32_t)hrDrag);
+    }
+
     ShowWindow(m_window, SW_SHOW);
     SetForegroundWindow(m_window);
 
     if (!InitD3D11(m_window)) {
+        RevokeDragDrop(m_window);
+        OleUninitialize();
         return -1;
     }
 
@@ -66,12 +220,13 @@ int Application::Run(HINSTANCE hInstance) {
         }
     }
 
+    RevokeDragDrop(m_window);
+    OleUninitialize();
     m_playback.reset();
     if (m_deviceCtx) m_deviceCtx->Release();
     if (m_swapChain) m_swapChain->Release();
     if (m_device) m_device->Release();
     ShutdownCrashHandler();
-    CoUninitialize();
     return 0;
 }
 
@@ -149,56 +304,6 @@ LRESULT CALLBACK Application::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM
             return HTCAPTION;
         }
         return DefWindowProc(hwnd, msg, wParam, lParam);
-    }
-    case WM_DROPFILES: {
-        HDROP hDrop = (HDROP)wParam;
-        wchar_t filePath[MAX_PATH];
-        DragQueryFile(hDrop, 0, filePath, MAX_PATH);
-
-        auto* pc = (PlaybackController*)GetWindowLongPtr(hwnd, GWLP_USERDATA);
-        if (!pc) { DragFinish(hDrop); return 0; }
-
-        DWORD attrs = GetFileAttributesW(filePath);
-        if (attrs != INVALID_FILE_ATTRIBUTES && (attrs & FILE_ATTRIBUTE_DIRECTORY)) {
-            std::vector<std::string> playlist;
-            std::function<void(const std::wstring&)> enumerate =
-                [&](const std::wstring& dir) {
-                std::wstring searchPath = dir + L"\\*";
-                WIN32_FIND_DATAW fd;
-                HANDLE hFind = FindFirstFileW(searchPath.c_str(), &fd);
-                if (hFind == INVALID_HANDLE_VALUE) return;
-                do {
-                    if (wcscmp(fd.cFileName, L".") == 0 ||
-                        wcscmp(fd.cFileName, L"..") == 0) continue;
-                    std::wstring fullPath = dir + L"\\" + fd.cFileName;
-                    if (fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
-                        enumerate(fullPath);
-                    } else {
-                        std::string utf8Path = w2u(fullPath);
-                        if (IsVideoFile(utf8Path)) {
-                            playlist.push_back(utf8Path);
-                        }
-                    }
-                } while (FindNextFileW(hFind, &fd));
-                FindClose(hFind);
-            };
-            enumerate(std::wstring(filePath));
-            if (!playlist.empty()) {
-                std::sort(playlist.begin(), playlist.end());
-                pc->SetPlaylist(playlist);
-                SetWindowTextW(hwnd, TruncateFileNameForTitle(pc->GetCurrentFilePath()).c_str());
-            }
-        } else {
-            std::string utf8Path = w2u(filePath);
-            uint32_t ret = pc->LoadFile(utf8Path.c_str());
-            if (ret != 0) {
-                logger->error("LoadFile failed: {}", ret);
-            } else {
-                SetWindowTextW(hwnd, TruncateFileNameForTitle(utf8Path).c_str());
-            }
-        }
-        DragFinish(hDrop);
-        return 0;
     }
     case WM_KEYDOWN:
         if (wParam == VK_F11) {
