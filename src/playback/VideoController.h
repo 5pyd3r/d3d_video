@@ -1,40 +1,38 @@
-#ifndef PLAYBACK_PLAYBACKCONTROLLER_H
-#define PLAYBACK_PLAYBACKCONTROLLER_H
+#ifndef PLAYBACK_VIDEOCONTROLLER_H
+#define PLAYBACK_VIDEOCONTROLLER_H
 
 #include <cstdint>
-#include <chrono>
 #include <memory>
-#include <vector>
 #include <d3d11.h>
-#include "../source/MediaSource.h"
-#include "../decode/VideoDecoder.h"
+#include "../source/IVideoSource.h"
 #include "../render/VideoQuad.h"
 #include "../render/SwapChainManager.h"
 
 enum class PlayState { Play = 0, Pause = 1, Stop = 2 };
 
-class PlaybackController {
+class VideoController {
 public:
-    PlaybackController();
-    ~PlaybackController();
+    VideoController();
+    ~VideoController();
 
     void Init(ID3D11Device* device, ID3D11DeviceContext* deviceCtx,
               IDXGISwapChain* swapChain, int viewWidth, int viewHeight);
 
-    uint32_t LoadFile(const char* filePath);
-    void SetPlaylist(const std::vector<std::string>& files);
+    void SetSource(std::unique_ptr<IVideoSource> source);
+    void StopSource();
     uint32_t Render(HWND hwnd);
     void ResizeSwapChain(int width, int height);
     PlayState GetState() const { return m_state; }
-    const std::string& GetCurrentFilePath() const { return m_currentFilePath; }
-    void Draw(HWND hwnd);
+
+    IVideoSource* GetSource() const { return m_source.get(); }
     nv::VideoQuad* GetVideoQuad() const { return m_vq.get(); }
     SwapChainManager& GetSwapChainMgr() { return m_swapChainMgr; }
 
 private:
+    void Draw(HWND hwnd);
+    void DrawCapture(HWND hwnd);
 
-    MediaSource m_source;
-    VideoDecoder m_decoder;
+    std::unique_ptr<IVideoSource> m_source;
     SwapChainManager m_swapChainMgr;
     std::unique_ptr<nv::VideoQuad> m_vq;
 
@@ -46,15 +44,7 @@ private:
     int m_viewWidth;
     int m_viewHeight;
 
-    AVFrame* m_frame = nullptr;
-    int m_frameCount = 0;
-    double m_frameDuration;
     PlayState m_state = PlayState::Stop;
-    std::vector<std::string> m_playlist;
-    int m_playlistIndex = -1;
-    std::chrono::steady_clock::time_point m_startTime;
-    std::string m_currentFilePath;
-    std::wstring m_lastWindowTitle;
 };
 
 #endif
