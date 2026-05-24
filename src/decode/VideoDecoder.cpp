@@ -12,6 +12,8 @@ VideoDecoder::VideoDecoder() {}
 VideoDecoder::~VideoDecoder() { Close(); }
 
 uint32_t VideoDecoder::Init(AVFormatContext* fmtCtx, double& avg_frame_rate, ID3D11Device* d3dDevice) {
+    Close();  // Clean up any previous decoder state
+
     for (unsigned int i = 0; i < fmtCtx->nb_streams; i++) {
         auto* theStream = fmtCtx->streams[i];
         const AVCodec* codec = avcodec_find_decoder(theStream->codecpar->codec_id);

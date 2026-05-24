@@ -24,10 +24,16 @@ void PlaybackController::Init(ID3D11Device* device, ID3D11DeviceContext* deviceC
     m_viewHeight = viewHeight;
 
     m_swapChainMgr.Init(device, deviceCtx, swapChain, viewWidth, viewHeight);
-    m_vq = std::make_unique<nv::VideoQuad>(device, deviceCtx, m_videoHeight, m_videoWidth);
+    m_vq = std::make_unique<nv::VideoQuad>(device, deviceCtx, m_videoWidth, m_videoHeight);
 }
 
 uint32_t PlaybackController::LoadFile(const char* filePath) {
+    // Reset previous playback state before loading new file
+    m_state = PlayState::Stop;
+    av_frame_free(&m_frame);
+    m_decoder.Close();
+    m_source.Close();
+
     double frameRate = 0.0;
     uint32_t ret = m_source.Open(filePath);
     if (ret != 0) return ret;
@@ -113,7 +119,8 @@ uint32_t PlaybackController::Render(HWND hwnd) {
         }
 
         if (presentTime < frameTime + m_frameDuration) {
-            TextureUpdater::Update(m_deviceCtx, m_vq->GetsharedHandle(),
+            HANDLE sharedHandle = m_vq->GetsharedHandle();
+            TextureUpdater::Update(m_deviceCtx, sharedHandle,
                                     m_frame, m_videoWidth, m_videoHeight, m_vq.get());
         }
     }

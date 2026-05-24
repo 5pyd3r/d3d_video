@@ -6,7 +6,7 @@ extern "C" {
 }
 
 void TextureUpdater::Update(ID3D11DeviceContext* deviceCtx,
-                             HANDLE sharedHandle,
+                             HANDLE& sharedHandle,
                              AVFrame* frame,
                              int& inOutWidth,
                              int& inOutHeight,
