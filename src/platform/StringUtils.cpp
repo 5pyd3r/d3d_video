@@ -69,7 +69,7 @@ bool IsVideoFile(const std::string& path) {
 }
 
 std::wstring TruncateFileNameForTitle(const std::string& filePath, size_t maxLen) {
-    std::filesystem::path p(filePath);
+    std::filesystem::path p = std::filesystem::u8path(filePath);
     std::wstring fileName = p.filename().wstring();
 
     if (fileName.length() <= maxLen) return fileName;
