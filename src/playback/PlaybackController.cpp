@@ -1,6 +1,7 @@
 #include "PlaybackController.h"
 #include "TextureUpdater.h"
 #include "../platform/Logger.h"
+#include "../platform/StringUtils.h"
 
 extern "C" {
 #include <libavcodec/avcodec.h>
@@ -45,6 +46,7 @@ uint32_t PlaybackController::LoadFile(const char* filePath) {
     m_frameCount = 0;
     m_state = PlayState::Play;
     m_startTime = std::chrono::steady_clock::now();
+    m_currentFilePath = filePath;
     return 0;
 }
 
@@ -129,9 +131,15 @@ uint32_t PlaybackController::Render(HWND hwnd) {
             if (m_playlistIndex >= 0 && m_playlistIndex + 1 < (int)m_playlist.size()) {
                 m_playlistIndex++;
                 LoadFile(m_playlist[m_playlistIndex].c_str());
+                std::wstring title = TruncateFileNameForTitle(m_currentFilePath);
+                if (title != m_lastWindowTitle) {
+                    SetWindowTextW(hwnd, title.c_str());
+                    m_lastWindowTitle = title;
+                }
                 return 0;
             }
             m_state = PlayState::Stop;
+            m_currentFilePath.clear();
             return 0;
         }
 
