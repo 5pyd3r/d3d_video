@@ -28,12 +28,14 @@ void PlaybackController::Init(ID3D11Device* device, ID3D11DeviceContext* deviceC
 }
 
 uint32_t PlaybackController::LoadFile(const char* filePath) {
+    double frameRate = 0.0;
     uint32_t ret = m_source.Open(filePath);
     if (ret != 0) return ret;
 
-    ret = m_decoder.Init(m_source.GetFormatContext(), m_frameDuration);
+    ret = m_decoder.Init(m_source.GetFormatContext(), frameRate, m_device);
     if (ret != 0) return ret;
 
+    m_frameDuration = (frameRate > 0.0) ? (1.0 / frameRate) : (1.0 / 30.0);
     m_frameCount = 0;
     m_state = PlayState::Play;
     m_startTime = std::chrono::steady_clock::now();
