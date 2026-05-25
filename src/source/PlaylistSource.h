@@ -20,6 +20,7 @@ public:
     int GetWidth() const override;
     int GetHeight() const override;
     const char* GetTitle() const override;
+    double GetFrameDuration() const override;
 
 private:
     bool OpenCurrent();
