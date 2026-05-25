@@ -308,6 +308,43 @@ void Application::InitHandlers() {
         PostQuitMessage(0);
         handled = true; return 0;
     };
+
+    m_handlers[WM_NCLBUTTONDBLCLK] = [this](MSG& m, bool& handled) -> LRESULT {
+        // Alt + double-click window edge → fit window to video aspect ratio.
+        // The clicked edge stays fixed (position + length), opposite edge moves.
+        if (!(GetKeyState(VK_MENU) & 0x8000)) return 0;
+        auto* src = m_controller ? m_controller->GetSource() : nullptr;
+        if (!src) return 0;
+
+        int vw = src->GetWidth();
+        int vh = src->GetHeight();
+        if (vw <= 0 || vh <= 0) return 0;
+        double videoRatio = (double)vw / vh;
+
+        UINT edge = static_cast<UINT>(m.wParam);
+        RECT wr;
+        GetWindowRect(m.hwnd, &wr);
+        int cx = wr.left, cy = wr.top, cw = wr.right - wr.left, ch = wr.bottom - wr.top;
+        int newW, newH, newX, newY;
+
+        if (edge == HTTOP || edge == HTBOTTOM) {
+            // Horizontal edge clicked → width fixed, adjust height
+            newW = cw;
+            newH = static_cast<int>(cw / videoRatio);
+            newX = cx;
+            newY = (edge == HTTOP) ? cy : cy + ch - newH;
+        } else if (edge == HTLEFT || edge == HTRIGHT) {
+            // Vertical edge clicked → height fixed, adjust width
+            newH = ch;
+            newW = static_cast<int>(ch * videoRatio);
+            newX = (edge == HTLEFT) ? cx : cx + cw - newW;
+            newY = cy;
+        } else {
+            return 0;
+        }
+        SetWindowPos(m.hwnd, nullptr, newX, newY, newW, newH, SWP_NOZORDER | SWP_NOACTIVATE);
+        handled = true; return 0;
+    };
 }
 
 int Application::Run(HINSTANCE hInstance) {
