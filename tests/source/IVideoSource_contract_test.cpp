@@ -1,0 +1,94 @@
+#include <gtest/gtest.h>
+#include <memory>
+#include <d3d11.h>
+
+#include "../../src/source/IVideoSource.h"
+
+namespace nv { class VideoQuad; }
+
+// Minimal mock: configurable return values for all IVideoSource methods
+class MockVideoSource : public IVideoSource {
+public:
+    MockVideoSource(SourceType type) : m_type(type) {}
+
+    bool Init() override { return m_initResult; }
+    bool ReadFrame(VideoFrame& out, ID3D11DeviceContext*, nv::VideoQuad*) override {
+        out.type = m_type;
+        out.width = m_width;
+        out.height = m_height;
+        return m_readFrameResult;
+    }
+    void Close() override {}
+    SourceType GetType() const override { return m_type; }
+    int GetWidth() const override { return m_width; }
+    int GetHeight() const override { return m_height; }
+    const char* GetTitle() const override { return "Mock"; }
+    double GetFrameDuration() const override { return m_frameDuration; }
+
+    // Configurable behavior
+    bool m_initResult = true;
+    bool m_readFrameResult = true;
+    int m_width = 640;
+    int m_height = 480;
+    double m_frameDuration = 1.0 / 60.0;
+    SourceType m_type;
+};
+
+// --- GetFrameDuration is pure virtual ---
+
+TEST(MockVideoSourceTest, GetFrameDuration_ReturnsConfiguredValue) {
+    MockVideoSource src(SourceType::File);
+    src.m_frameDuration = 1.0 / 60.0;
+    EXPECT_DOUBLE_EQ(src.GetFrameDuration(), 1.0 / 60.0);
+}
+
+TEST(MockVideoSourceTest, GetFrameDuration_DefaultValue) {
+    MockVideoSource src(SourceType::File);
+    EXPECT_DOUBLE_EQ(src.GetFrameDuration(), 1.0 / 60.0); // matches m_frameDuration init
+}
+
+// --- GetType returns correct value ---
+
+TEST(MockVideoSourceTest, GetType_File) {
+    MockVideoSource src(SourceType::File);
+    EXPECT_EQ(src.GetType(), SourceType::File);
+}
+
+TEST(MockVideoSourceTest, GetType_Capture) {
+    MockVideoSource src(SourceType::Capture);
+    EXPECT_EQ(src.GetType(), SourceType::Capture);
+}
+
+// --- ReadFrame semantics ---
+
+TEST(MockVideoSourceTest, ReadFrame_SetsFrameType) {
+    MockVideoSource src(SourceType::Capture);
+    VideoFrame frame;
+    bool ok = src.ReadFrame(frame, nullptr, nullptr);
+    EXPECT_TRUE(ok);
+    EXPECT_EQ(frame.type, SourceType::Capture);
+}
+
+TEST(MockVideoSourceTest, ReadFrame_ReturnsFalseWhenConfigured) {
+    MockVideoSource src(SourceType::File);
+    src.m_readFrameResult = false;
+    VideoFrame frame;
+    bool ok = src.ReadFrame(frame, nullptr, nullptr);
+    EXPECT_FALSE(ok);
+}
+
+// --- Init semantics ---
+
+TEST(MockVideoSourceTest, Init_ReturnsConfiguredValue) {
+    MockVideoSource src(SourceType::File);
+    EXPECT_TRUE(src.Init());
+    src.m_initResult = false;
+    EXPECT_FALSE(src.Init());
+}
+
+// --- GetTitle returns string ---
+
+TEST(MockVideoSourceTest, GetTitle_NotNull) {
+    MockVideoSource src(SourceType::File);
+    EXPECT_STREQ(src.GetTitle(), "Mock");
+}
