@@ -53,3 +53,7 @@ int PlaylistSource::GetHeight() const {
 const char* PlaylistSource::GetTitle() const {
     return m_currentSource ? m_currentSource->GetTitle() : "Playlist";
 }
+
+double PlaylistSource::GetFrameDuration() const {
+    return m_currentSource ? m_currentSource->GetFrameDuration() : 1.0 / 30.0;
+}

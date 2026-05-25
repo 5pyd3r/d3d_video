@@ -2,6 +2,7 @@
 #include "../platform/Logger.h"
 #include "../playback/TextureUpdater.h"
 #include "../render/VideoQuad.h"
+#include <filesystem>
 
 extern "C" {
 #include <libavcodec/avcodec.h>
@@ -33,6 +34,7 @@ bool FileSource::Init() {
 
     m_frameRate = frameRate;
     m_frameDuration = (frameRate > 0.0) ? (1.0 / frameRate) : (1.0 / 30.0);
+    m_title = std::filesystem::path(m_path).filename().string();
     return true;
 }
 

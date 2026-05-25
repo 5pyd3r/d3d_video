@@ -100,9 +100,13 @@ uint32_t VideoController::Render(HWND hwnd) {
         if (m_source->GetType() == SourceType::File) Draw(hwnd);
         else DrawCapture(hwnd);
     } else {
-        // EOF — source ended
-        m_state = PlayState::Stop;
-        Draw(hwnd);
+        // File EOF. Capture: no frame ready yet, keep going.
+        if (m_source->GetType() == SourceType::File) {
+            m_state = PlayState::Stop;
+            Draw(hwnd);
+        } else {
+            DrawCapture(hwnd);
+        }
     }
     return 0;
 }

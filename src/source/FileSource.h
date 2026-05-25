@@ -17,11 +17,12 @@ public:
     SourceType GetType() const override { return SourceType::File; }
     int GetWidth() const override { return m_width; }
     int GetHeight() const override { return m_height; }
-    const char* GetTitle() const override { return m_path.c_str(); }
+    const char* GetTitle() const override { return m_title.c_str(); }
     double GetFrameDuration() const override { return m_frameDuration; }
 
 private:
     std::string m_path;
+    std::string m_title;
     ID3D11Device* m_d3dDevice;
     MediaSource m_mediaSource;
     VideoDecoder m_decoder;
