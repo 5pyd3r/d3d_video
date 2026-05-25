@@ -19,6 +19,7 @@ public:
     int GetHeight() const override { return m_height; }
     const char* GetTitle() const override { return m_title.c_str(); }
     double GetFrameDuration() const override { return m_frameDuration; }
+    RenderDescriptor GetRenderDescriptor(nv::VideoQuad* vq) const override;
 
 private:
     std::string m_path;

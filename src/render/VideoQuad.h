@@ -12,6 +12,8 @@
 #pragma comment(lib, "dxgi.lib")
 #include <DirectXMath.h>
 
+struct RenderDescriptor;
+
 namespace nv {
 	using namespace Microsoft::WRL;
 
@@ -41,7 +43,14 @@ namespace nv {
 		void InitCapture(int videoWidth, int videoHeight);
 		void ResizeCapture(int videoWidth, int videoHeight);
 		ID3D11Texture2D* GetCaptureTexture() const { return captureTexture; }
-		void DrawCapture();
+		void Draw(const struct RenderDescriptor& rp);
+
+		// Accessors for source GetRenderDescriptor()
+		ID3D11PixelShader* GetNV12PixelShader() const { return pPixelShader; }
+		ID3D11PixelShader* GetCapturePixelShader() const { return capturePixelShader; }
+		ID3D11ShaderResourceView* GetLuminanceSRV() const { return m_luminanceView; }
+		ID3D11ShaderResourceView* GetChrominanceSRV() const { return m_chrominanceView; }
+		ID3D11ShaderResourceView* GetCaptureSRV() const { return captureSRV; }
 	private:
 		ID3D11Device* _device;
 		ID3D11DeviceContext* _deviceCtx;

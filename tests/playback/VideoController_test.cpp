@@ -31,6 +31,7 @@ public:
     int GetHeight() const override { return 480; }
     const char* GetTitle() const override { return "Fake"; }
     double GetFrameDuration() const override { return m_frameDuration; }
+    RenderDescriptor GetRenderDescriptor(nv::VideoQuad* vq) const override { return {}; }
 
     bool m_initResult = true;
     bool m_readFrameResult = true;

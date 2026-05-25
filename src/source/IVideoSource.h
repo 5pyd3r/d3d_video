@@ -26,6 +26,13 @@ struct VideoFrame {
 
 namespace nv { class VideoQuad; }
 
+// Describes the GPU pipeline needed to render this source's frames.
+// Each source provides its pixel shader + up to 2 texture SRVs.
+struct RenderDescriptor {
+    ID3D11PixelShader* pixelShader = nullptr;
+    ID3D11ShaderResourceView* srvs[2] = {nullptr, nullptr};
+};
+
 class IVideoSource {
 public:
     virtual ~IVideoSource() = default;
@@ -37,6 +44,10 @@ public:
     virtual int GetHeight() const = 0;
     virtual const char* GetTitle() const = 0;
     virtual double GetFrameDuration() const = 0;
+
+    // Return the render pipeline for this source's current frame.
+    // Called by VideoController to select the correct shader + textures.
+    virtual RenderDescriptor GetRenderDescriptor(nv::VideoQuad* vq) const = 0;
 };
 
 #endif

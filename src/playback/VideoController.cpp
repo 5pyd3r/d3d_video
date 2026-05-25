@@ -52,20 +52,11 @@ void VideoController::Draw(HWND hwnd) {
     double srcRatio = (double)m_videoWidth / m_videoHeight;
     double dstRatio = (double)rect.right / rect.bottom;
     m_vq->UpdateByRatio(srcRatio, dstRatio);
-    m_vq->Draw();
-    m_swapChainMgr.EndFrame();
-    ClipCursor(NULL);
-}
-
-void VideoController::DrawCapture(HWND hwnd) {
-    m_swapChainMgr.BeginFrame();
-    m_vq->BeginDraw();
-    RECT rect;
-    GetClientRect(hwnd, &rect);
-    double srcRatio = (double)m_videoWidth / m_videoHeight;
-    double dstRatio = (double)rect.right / rect.bottom;
-    m_vq->UpdateByRatio(srcRatio, dstRatio);
-    m_vq->DrawCapture();
+    if (m_source) {
+        m_vq->Draw(m_source->GetRenderDescriptor(m_vq.get()));
+    } else {
+        m_vq->Draw();  // default NV12 pipeline when no source
+    }
     m_swapChainMgr.EndFrame();
     ClipCursor(NULL);
 }
@@ -82,9 +73,7 @@ uint32_t VideoController::Render(HWND hwnd) {
     double frameTime = m_frameDuration * m_frameCount;
 
     if (presentTime < frameTime || m_state == PlayState::Pause) {
-        // Draw existing frame without decoding a new one
-        if (m_source->GetType() == SourceType::File) Draw(hwnd);
-        else DrawCapture(hwnd);
+        Draw(hwnd);
         return 0;
     }
 
@@ -97,16 +86,13 @@ uint32_t VideoController::Render(HWND hwnd) {
             m_videoWidth = frame.width;
             m_videoHeight = frame.height;
         }
-        if (m_source->GetType() == SourceType::File) Draw(hwnd);
-        else DrawCapture(hwnd);
+        Draw(hwnd);
     } else {
         // File EOF. Capture: no frame ready yet, keep going.
         if (m_source->GetType() == SourceType::File) {
             m_state = PlayState::Stop;
-            Draw(hwnd);
-        } else {
-            DrawCapture(hwnd);
         }
+        Draw(hwnd);
     }
     return 0;
 }

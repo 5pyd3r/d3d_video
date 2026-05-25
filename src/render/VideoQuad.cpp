@@ -5,6 +5,7 @@
 #include "CapturePixelShader.h"
 #include "VertexShader.h"
 #include "../platform/Logger.h"
+#include "../source/IVideoSource.h"
 
 using namespace nv;
 namespace dx = DirectX;
@@ -202,31 +203,7 @@ HANDLE nv::VideoQuad::GetsharedHandle()
 }
 
 void VideoQuad::Draw() {
-
-	D3D11_MAPPED_SUBRESOURCE map;
-	_deviceCtx->Map(pConstantBuffer, 0, D3D11_MAP::D3D11_MAP_WRITE_DISCARD, 0, &map);
-
-	auto m = dx::XMMatrixTranspose(transformMatrix);
-	memcpy(map.pData, &m, sizeof(m));
-
-	_deviceCtx->Unmap(pConstantBuffer, 0);
-
-	UINT stride = sizeof(Vertex);
-	UINT offset = 0u;
-	_deviceCtx->IASetVertexBuffers(0, 1, &pVertexBuffer, &stride, &offset);
-	_deviceCtx->IASetIndexBuffer(pIndexBuffer, DXGI_FORMAT_R16_UINT, 0);
-	_deviceCtx->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY::D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-	_deviceCtx->IASetInputLayout(pInputLayout);
-
-	_deviceCtx->VSSetShader(pVertexShader, 0, 0);
-	_deviceCtx->VSSetConstantBuffers(0, 1, &pConstantBuffer);
-
-	_deviceCtx->PSSetShader(pPixelShader, 0, 0);
-	_deviceCtx->PSSetShaderResources(0, 1, &m_luminanceView);
-	_deviceCtx->PSSetShaderResources(1, 1, &m_chrominanceView);
-	_deviceCtx->PSSetSamplers(0, 1, &pSampler);
-
-	_deviceCtx->DrawIndexed(indicesSize, 0, 0);
+	Draw(RenderDescriptor{ pPixelShader, { m_luminanceView, m_chrominanceView } });
 }
 
 // --- Capture BGRA rendering -------------------------------------------------
@@ -258,7 +235,7 @@ void VideoQuad::ResizeCapture(int videoWidth, int videoHeight) {
 	_device->CreateShaderResourceView(captureTexture, &srvDesc, &captureSRV);
 }
 
-void VideoQuad::DrawCapture() {
+void VideoQuad::Draw(const RenderDescriptor& rp) {
 	D3D11_MAPPED_SUBRESOURCE map;
 	_deviceCtx->Map(pConstantBuffer, 0, D3D11_MAP::D3D11_MAP_WRITE_DISCARD, 0, &map);
 
@@ -277,8 +254,9 @@ void VideoQuad::DrawCapture() {
 	_deviceCtx->VSSetShader(pVertexShader, 0, 0);
 	_deviceCtx->VSSetConstantBuffers(0, 1, &pConstantBuffer);
 
-	_deviceCtx->PSSetShader(capturePixelShader, 0, 0);
-	_deviceCtx->PSSetShaderResources(0, 1, &captureSRV);
+	_deviceCtx->PSSetShader(rp.pixelShader, 0, 0);
+	_deviceCtx->PSSetShaderResources(0, 1, &rp.srvs[0]);
+	_deviceCtx->PSSetShaderResources(1, 1, &rp.srvs[1]);
 	_deviceCtx->PSSetSamplers(0, 1, &pSampler);
 
 	_deviceCtx->DrawIndexed(indicesSize, 0, 0);

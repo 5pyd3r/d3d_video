@@ -57,3 +57,8 @@ const char* PlaylistSource::GetTitle() const {
 double PlaylistSource::GetFrameDuration() const {
     return m_currentSource ? m_currentSource->GetFrameDuration() : 1.0 / 30.0;
 }
+
+RenderDescriptor PlaylistSource::GetRenderDescriptor(nv::VideoQuad* vq) const {
+    return m_currentSource ? m_currentSource->GetRenderDescriptor(vq)
+                          : RenderDescriptor{};
+}

@@ -21,6 +21,7 @@ public:
     int GetHeight() const override;
     const char* GetTitle() const override;
     double GetFrameDuration() const override;
+    RenderDescriptor GetRenderDescriptor(nv::VideoQuad* vq) const override;
 
 private:
     bool OpenCurrent();

@@ -31,7 +31,6 @@ public:
 
 private:
     void Draw(HWND hwnd);
-    void DrawCapture(HWND hwnd);
 
     std::unique_ptr<IVideoSource> m_source;
     SwapChainManager m_swapChainMgr;

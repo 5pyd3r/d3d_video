@@ -78,6 +78,10 @@ bool FileSource::ReadFrame(VideoFrame& out, ID3D11DeviceContext* ctx, nv::VideoQ
     return true;
 }
 
+RenderDescriptor FileSource::GetRenderDescriptor(nv::VideoQuad* vq) const {
+    return { vq->GetNV12PixelShader(), { vq->GetLuminanceSRV(), vq->GetChrominanceSRV() } };
+}
+
 void FileSource::Close() {
     av_frame_free(&m_frame);
     m_decoder.Close();
