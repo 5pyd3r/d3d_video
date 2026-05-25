@@ -19,15 +19,20 @@ void SwapChainManager::Init(ID3D11Device* device, ID3D11DeviceContext* deviceCtx
     m_width = width;
     m_height = height;
 
-    ID3D11Texture2D* backBuffer;
-    m_swapChain->GetBuffer(0, __uuidof(ID3D11Texture2D), (void**)&backBuffer);
+    ID3D11Texture2D* backBuffer = nullptr;
+    HRESULT hr = m_swapChain->GetBuffer(0, __uuidof(ID3D11Texture2D), (void**)&backBuffer);
+    if (FAILED(hr) || !backBuffer) return;
+
+    DXGI_SWAP_CHAIN_DESC sd = {};
+    m_swapChain->GetDesc(&sd);
 
     D3D11_RENDER_TARGET_VIEW_DESC rtvDesc = {};
-    rtvDesc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
+    rtvDesc.Format = sd.BufferDesc.Format;
     rtvDesc.ViewDimension = D3D11_RTV_DIMENSION_TEXTURE2D;
     rtvDesc.Texture2D.MipSlice = 0;
-    m_device->CreateRenderTargetView(backBuffer, &rtvDesc, &m_renderTargetView);
+    hr = m_device->CreateRenderTargetView(backBuffer, &rtvDesc, &m_renderTargetView);
     backBuffer->Release();
+    if (FAILED(hr)) m_renderTargetView = nullptr;
 }
 
 void SwapChainManager::Resize(int width, int height) {
@@ -43,15 +48,17 @@ void SwapChainManager::Resize(int width, int height) {
     m_swapChain->GetDesc(&desc);
     m_swapChain->ResizeBuffers(desc.BufferCount, width, height, desc.BufferDesc.Format, desc.Flags);
 
-    ID3D11Texture2D* backBuffer;
-    m_swapChain->GetBuffer(0, __uuidof(ID3D11Texture2D), (void**)&backBuffer);
+    ID3D11Texture2D* backBuffer = nullptr;
+    HRESULT hr = m_swapChain->GetBuffer(0, __uuidof(ID3D11Texture2D), (void**)&backBuffer);
+    if (FAILED(hr) || !backBuffer) return;
 
     D3D11_RENDER_TARGET_VIEW_DESC rtvDesc = {};
     rtvDesc.Format = desc.BufferDesc.Format;
     rtvDesc.ViewDimension = D3D11_RTV_DIMENSION_TEXTURE2D;
     rtvDesc.Texture2D.MipSlice = 0;
-    m_device->CreateRenderTargetView(backBuffer, &rtvDesc, &m_renderTargetView);
+    hr = m_device->CreateRenderTargetView(backBuffer, &rtvDesc, &m_renderTargetView);
     backBuffer->Release();
+    if (FAILED(hr)) m_renderTargetView = nullptr;
 }
 
 void SwapChainManager::BeginFrame() {

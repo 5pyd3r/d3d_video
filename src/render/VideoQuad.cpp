@@ -4,6 +4,7 @@
 #include "PixelShader.h"
 #include "CapturePixelShader.h"
 #include "VertexShader.h"
+#include "../platform/Logger.h"
 
 using namespace nv;
 namespace dx = DirectX;
@@ -25,7 +26,8 @@ VideoQuad::VideoQuad(
 	tdesc.Height = videoHeight;
 	tdesc.Width = videoWidth;
 	tdesc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
-	_device->CreateTexture2D(&tdesc, nullptr, &videoTexture);
+	HRESULT hr = _device->CreateTexture2D(&tdesc, nullptr, &videoTexture);
+	if (FAILED(hr)) { logger->error("VideoQuad: CreateTexture2D failed: 0x{:08X}", (uint32_t)hr); return; }
 
 	IDXGIResource *dxgiShareTexture;
 	videoTexture->QueryInterface(__uuidof(IDXGIResource), (void **)&dxgiShareTexture);
@@ -38,10 +40,8 @@ VideoQuad::VideoQuad(
 	luminancePlaneDesc.Texture2D.MostDetailedMip = 0;
 	luminancePlaneDesc.Texture2D.MipLevels = 1;
 
-	_device->CreateShaderResourceView(
-		videoTexture,
-		&luminancePlaneDesc,
-		&m_luminanceView);
+	hr = _device->CreateShaderResourceView(videoTexture, &luminancePlaneDesc, &m_luminanceView);
+	if (FAILED(hr)) logger->error("VideoQuad: CreateShaderResourceView(luminance) failed: 0x{:08X}", (uint32_t)hr);
 
 	D3D11_SHADER_RESOURCE_VIEW_DESC chrominancePlaneDesc = {};
 	chrominancePlaneDesc.Format = DXGI_FORMAT_R8G8_UNORM;
@@ -49,10 +49,8 @@ VideoQuad::VideoQuad(
 	chrominancePlaneDesc.Texture2D.MostDetailedMip = 0;
 	chrominancePlaneDesc.Texture2D.MipLevels = 1;
 
-	_device->CreateShaderResourceView(
-		videoTexture,
-		&chrominancePlaneDesc,
-		&m_chrominanceView);
+	hr = _device->CreateShaderResourceView(videoTexture, &chrominancePlaneDesc, &m_chrominanceView);
+	if (FAILED(hr)) logger->error("VideoQuad: CreateShaderResourceView(chrominance) failed: 0x{:08X}", (uint32_t)hr);
 
 	D3D11_BUFFER_DESC bd = {};
 	bd.BindFlags = D3D11_BIND_VERTEX_BUFFER;
@@ -60,12 +58,13 @@ VideoQuad::VideoQuad(
 	bd.StructureByteStride = sizeof(Vertex);
 	D3D11_SUBRESOURCE_DATA sd = {};
 	sd.pSysMem = vertices;
-	_device->CreateBuffer(&bd, &sd, &pVertexBuffer);
+	hr = _device->CreateBuffer(&bd, &sd, &pVertexBuffer);
+	if (FAILED(hr)) logger->error("VideoQuad: CreateBuffer(vertex) failed: 0x{:08X}", (uint32_t)hr);
 
 	const UINT16 indices[] = {
 		0,1,2, 0,2,3
 	};
-	indicesSize = sizeof(indices);
+	indicesSize = sizeof(indices) / sizeof(UINT16);
 
 	D3D11_BUFFER_DESC ibd = {};
 	ibd.BindFlags = D3D11_BIND_INDEX_BUFFER;
@@ -73,7 +72,8 @@ VideoQuad::VideoQuad(
 	ibd.StructureByteStride = sizeof(UINT16);
 	D3D11_SUBRESOURCE_DATA isd = {};
 	isd.pSysMem = indices;
-	_device->CreateBuffer(&ibd, &isd, &pIndexBuffer);
+	hr = _device->CreateBuffer(&ibd, &isd, &pIndexBuffer);
+	if (FAILED(hr)) logger->error("VideoQuad: CreateBuffer(index) failed: 0x{:08X}", (uint32_t)hr);
 
 	D3D11_BUFFER_DESC cbd = {};
 	cbd.Usage = D3D11_USAGE_DYNAMIC;
@@ -83,17 +83,21 @@ VideoQuad::VideoQuad(
 	cbd.StructureByteStride = 0;
 	D3D11_SUBRESOURCE_DATA csd = {};
 	csd.pSysMem = &constant;
-	_device->CreateBuffer(&cbd, &csd, &pConstantBuffer);
+	hr = _device->CreateBuffer(&cbd, &csd, &pConstantBuffer);
+	if (FAILED(hr)) logger->error("VideoQuad: CreateBuffer(constant) failed: 0x{:08X}", (uint32_t)hr);
 
 	D3D11_INPUT_ELEMENT_DESC ied[] = {
 		{"POSITION", 0, DXGI_FORMAT::DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0},
 		{"TexCoord", 0, DXGI_FORMAT::DXGI_FORMAT_R32G32_FLOAT, 0, 12, D3D11_INPUT_PER_VERTEX_DATA, 0}
 	};
-	_device->CreateInputLayout(ied, std::size(ied), g_vs, sizeof(g_vs), &pInputLayout);
+	hr = _device->CreateInputLayout(ied, std::size(ied), g_vs, sizeof(g_vs), &pInputLayout);
+	if (FAILED(hr)) logger->error("VideoQuad: CreateInputLayout failed: 0x{:08X}", (uint32_t)hr);
 
-	_device->CreateVertexShader(g_vs, sizeof(g_vs), nullptr, &pVertexShader);
+	hr = _device->CreateVertexShader(g_vs, sizeof(g_vs), nullptr, &pVertexShader);
+	if (FAILED(hr)) logger->error("VideoQuad: CreateVertexShader failed: 0x{:08X}", (uint32_t)hr);
 
-	_device->CreatePixelShader(g_ps, sizeof(g_ps), nullptr, &pPixelShader);
+	hr = _device->CreatePixelShader(g_ps, sizeof(g_ps), nullptr, &pPixelShader);
+	if (FAILED(hr)) logger->error("VideoQuad: CreatePixelShader failed: 0x{:08X}", (uint32_t)hr);
 
 	D3D11_SAMPLER_DESC samplerDesc = {};
 	samplerDesc.Filter = D3D11_FILTER::D3D11_FILTER_ANISOTROPIC;
@@ -101,26 +105,27 @@ VideoQuad::VideoQuad(
 	samplerDesc.AddressV = D3D11_TEXTURE_ADDRESS_WRAP;
 	samplerDesc.AddressW = D3D11_TEXTURE_ADDRESS_WRAP;
 
-	_device->CreateSamplerState(&samplerDesc, &pSampler);
+	hr = _device->CreateSamplerState(&samplerDesc, &pSampler);
+	if (FAILED(hr)) logger->error("VideoQuad: CreateSamplerState failed: 0x{:08X}", (uint32_t)hr);
 
 	transformMatrix = dx::XMMatrixRotationX(0);
 }
 
 VideoQuad::~VideoQuad()
 {
-	m_luminanceView->Release();
-	m_chrominanceView->Release();
-	if (videoTexture) videoTexture->Release();
-	if (captureTexture) captureTexture->Release();
-	if (captureSRV) captureSRV->Release();
-	if (capturePixelShader) capturePixelShader->Release();
-	pVertexBuffer->Release();
-	pIndexBuffer->Release();
-	pConstantBuffer->Release();
-	pInputLayout->Release();
-	pVertexShader->Release();
-	pPixelShader->Release();
-	pSampler->Release();
+	if (m_luminanceView) { m_luminanceView->Release(); m_luminanceView = nullptr; }
+	if (m_chrominanceView) { m_chrominanceView->Release(); m_chrominanceView = nullptr; }
+	if (videoTexture) { videoTexture->Release(); videoTexture = nullptr; }
+	if (captureTexture) { captureTexture->Release(); captureTexture = nullptr; }
+	if (captureSRV) { captureSRV->Release(); captureSRV = nullptr; }
+	if (capturePixelShader) { capturePixelShader->Release(); capturePixelShader = nullptr; }
+	if (pVertexBuffer) { pVertexBuffer->Release(); pVertexBuffer = nullptr; }
+	if (pIndexBuffer) { pIndexBuffer->Release(); pIndexBuffer = nullptr; }
+	if (pConstantBuffer) { pConstantBuffer->Release(); pConstantBuffer = nullptr; }
+	if (pInputLayout) { pInputLayout->Release(); pInputLayout = nullptr; }
+	if (pVertexShader) { pVertexShader->Release(); pVertexShader = nullptr; }
+	if (pPixelShader) { pPixelShader->Release(); pPixelShader = nullptr; }
+	if (pSampler) { pSampler->Release(); pSampler = nullptr; }
 }
 
 void VideoQuad::Resize(int videoHeight, int videoWidth)

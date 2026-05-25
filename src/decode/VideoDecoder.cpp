@@ -96,12 +96,26 @@ VideoDecoder::DecodedFrame VideoDecoder::Flush(int streamIndex) {
     AVCodecContext* codecCtx = it->second;
     avcodec_send_packet(codecCtx, nullptr);
 
-    AVFrame* frame = av_frame_alloc();
-    int ret = avcodec_receive_frame(codecCtx, frame);
-    if (ret == 0) {
-        return {codecCtx->codec_type, frame};
+    // Drain all buffered frames; return the first video frame found.
+    // Discard non-video frames (audio, subtitles, etc.) and any frames
+    // after the first video frame, since we only process one per tick.
+    AVFrame* firstVideoFrame = nullptr;
+    while (true) {
+        AVFrame* frame = av_frame_alloc();
+        int ret = avcodec_receive_frame(codecCtx, frame);
+        if (ret != 0) {
+            av_frame_free(&frame);
+            break;
+        }
+        if (codecCtx->codec_type == AVMEDIA_TYPE_VIDEO && !firstVideoFrame) {
+            firstVideoFrame = frame;
+        } else {
+            av_frame_free(&frame);
+        }
     }
-    av_frame_free(&frame);
+    if (firstVideoFrame) {
+        return {codecCtx->codec_type, firstVideoFrame};
+    }
     return {AVMEDIA_TYPE_UNKNOWN, nullptr};
 }
 
