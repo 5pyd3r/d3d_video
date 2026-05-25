@@ -3,6 +3,18 @@
 
 #include <d3d11.h>
 
+// ==========================================================================
+// IVideoSource Implementation Checklist
+//
+// When creating a new IVideoSource subclass, verify:
+//   [ ] GetFrameDuration() — explicit override required (pure virtual)
+//   [ ] GetTitle() — returns display-ready human-readable title, not internal path
+//   [ ] ReadFrame() — File: false means EOF. Capture: false means no frame ready,
+//       caller should retry; do NOT permanently stop.
+//   [ ] Init() — succeed or fail cleanly, no partial state
+//   [ ] Close() — idempotent, safe to call multiple times
+// ==========================================================================
+
 enum class SourceType { File, Capture };
 
 struct VideoFrame {
@@ -24,7 +36,7 @@ public:
     virtual int GetWidth() const = 0;
     virtual int GetHeight() const = 0;
     virtual const char* GetTitle() const = 0;
-    virtual double GetFrameDuration() const { return 1.0 / 30.0; }
+    virtual double GetFrameDuration() const = 0;
 };
 
 #endif
