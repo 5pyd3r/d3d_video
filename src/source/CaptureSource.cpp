@@ -32,8 +32,8 @@ bool CaptureSource::Init() {
     return true;
 }
 
-bool CaptureSource::ReadFrame(VideoFrame& out, ID3D11DeviceContext* ctx, nv::VideoQuad* vq) {
-    if (!m_capture.IsCapturing()) return false;
+FrameResult CaptureSource::ReadFrame(VideoFrame& out, ID3D11DeviceContext* ctx, nv::VideoQuad* vq) {
+    if (!m_capture.IsCapturing()) return FrameResult::End;
 
     int w = m_width;
     int h = m_height;
@@ -45,7 +45,7 @@ bool CaptureSource::ReadFrame(VideoFrame& out, ID3D11DeviceContext* ctx, nv::Vid
     out.type = SourceType::Capture;
     out.width = m_width;
     out.height = m_height;
-    return ok;
+    return ok ? FrameResult::Got : FrameResult::NotReady;
 }
 
 RenderDescriptor CaptureSource::GetRenderDescriptor(nv::VideoQuad* vq) const {

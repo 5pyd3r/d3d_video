@@ -12,23 +12,22 @@ public:
     MockVideoSource(SourceType type) : m_type(type) {}
 
     bool Init() override { return m_initResult; }
-    bool ReadFrame(VideoFrame& out, ID3D11DeviceContext*, nv::VideoQuad*) override {
+    FrameResult ReadFrame(VideoFrame& out, ID3D11DeviceContext*, nv::VideoQuad*) override {
         out.type = m_type;
         out.width = m_width;
         out.height = m_height;
         return m_readFrameResult;
     }
     void Close() override {}
-    SourceType GetType() const override { return m_type; }
     int GetWidth() const override { return m_width; }
     int GetHeight() const override { return m_height; }
     const char* GetTitle() const override { return "Mock"; }
     double GetFrameDuration() const override { return m_frameDuration; }
-    RenderDescriptor GetRenderDescriptor(nv::VideoQuad* vq) const override { return {}; }
+    RenderDescriptor GetRenderDescriptor(nv::VideoQuad*) const override { return {}; }
 
     // Configurable behavior
     bool m_initResult = true;
-    bool m_readFrameResult = true;
+    FrameResult m_readFrameResult = FrameResult::Got;
     int m_width = 640;
     int m_height = 480;
     double m_frameDuration = 1.0 / 60.0;
@@ -48,34 +47,22 @@ TEST(MockVideoSourceTest, GetFrameDuration_DefaultValue) {
     EXPECT_DOUBLE_EQ(src.GetFrameDuration(), 1.0 / 60.0); // matches m_frameDuration init
 }
 
-// --- GetType returns correct value ---
-
-TEST(MockVideoSourceTest, GetType_File) {
-    MockVideoSource src(SourceType::File);
-    EXPECT_EQ(src.GetType(), SourceType::File);
-}
-
-TEST(MockVideoSourceTest, GetType_Capture) {
-    MockVideoSource src(SourceType::Capture);
-    EXPECT_EQ(src.GetType(), SourceType::Capture);
-}
-
 // --- ReadFrame semantics ---
 
 TEST(MockVideoSourceTest, ReadFrame_SetsFrameType) {
     MockVideoSource src(SourceType::Capture);
     VideoFrame frame;
-    bool ok = src.ReadFrame(frame, nullptr, nullptr);
-    EXPECT_TRUE(ok);
+    FrameResult ok = src.ReadFrame(frame, nullptr, nullptr);
+    EXPECT_EQ(ok, FrameResult::Got);
     EXPECT_EQ(frame.type, SourceType::Capture);
 }
 
 TEST(MockVideoSourceTest, ReadFrame_ReturnsFalseWhenConfigured) {
     MockVideoSource src(SourceType::File);
-    src.m_readFrameResult = false;
+    src.m_readFrameResult = FrameResult::End;
     VideoFrame frame;
-    bool ok = src.ReadFrame(frame, nullptr, nullptr);
-    EXPECT_FALSE(ok);
+    FrameResult ok = src.ReadFrame(frame, nullptr, nullptr);
+    EXPECT_EQ(ok, FrameResult::End);
 }
 
 // --- Init semantics ---

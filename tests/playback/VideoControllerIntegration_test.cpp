@@ -19,7 +19,7 @@ public:
         : m_type(type), m_frameDuration(frameDuration) {}
 
     bool Init() override { return m_initResult; }
-    bool ReadFrame(VideoFrame& out, ID3D11DeviceContext*, nv::VideoQuad*) override {
+    FrameResult ReadFrame(VideoFrame& out, ID3D11DeviceContext*, nv::VideoQuad*) override {
         m_readFrameCount++;
         out.type = m_type;
         out.width = 1920;
@@ -27,15 +27,14 @@ public:
         return m_readFrameResult;
     }
     void Close() override {}
-    SourceType GetType() const override { return m_type; }
     int GetWidth() const override { return 1920; }
     int GetHeight() const override { return 1080; }
     const char* GetTitle() const override { return "TestSource"; }
     double GetFrameDuration() const override { return m_frameDuration; }
-    RenderDescriptor GetRenderDescriptor(nv::VideoQuad* vq) const override { return {}; }
+    RenderDescriptor GetRenderDescriptor(nv::VideoQuad*) const override { return {}; }
 
     bool m_initResult = true;
-    bool m_readFrameResult = true;
+    FrameResult m_readFrameResult = FrameResult::Got;
     int m_readFrameCount = 0;
     SourceType m_type;
     double m_frameDuration;
@@ -131,11 +130,11 @@ TEST_F(VideoControllerIntegrationTest, SetFileSource_TransitionsToPlay) {
 TEST_F(VideoControllerIntegrationTest, FileSource_EOF_TransitionsToStop) {
     if (!m_vc) GTEST_SKIP() << "D3D11 not available";
     auto src = std::make_unique<TestSource>(SourceType::File);
-    src->m_readFrameResult = false;
+    src->m_readFrameResult = FrameResult::End;
     m_vc->SetSource(std::move(src));
     EXPECT_EQ(m_vc->GetState(), PlayState::Play);
 
-    // First Render will try ReadFrame, get false, stop
+    // First Render will try ReadFrame, get End, stop
     m_vc->Render(m_hwnd);
     EXPECT_EQ(m_vc->GetState(), PlayState::Stop);
 }
@@ -152,7 +151,7 @@ TEST_F(VideoControllerIntegrationTest, SetCaptureSource_TransitionsToPlay) {
 TEST_F(VideoControllerIntegrationTest, CaptureSource_NoFrame_StaysInPlay) {
     if (!m_vc) GTEST_SKIP() << "D3D11 not available";
     auto src = std::make_unique<TestSource>(SourceType::Capture);
-    src->m_readFrameResult = false;  // Simulate no frame ready
+    src->m_readFrameResult = FrameResult::NotReady;  // Simulate no frame ready
     m_vc->SetSource(std::move(src));
 
     // Multiple Render calls — should NOT transition to Stop
@@ -216,7 +215,7 @@ TEST_F(VideoControllerIntegrationTest, SwitchSource_FileToCapture) {
 
     // Switch to Capture without explicit Stop
     auto capSrc = std::make_unique<TestSource>(SourceType::Capture);
-    capSrc->m_readFrameResult = false;
+    capSrc->m_readFrameResult = FrameResult::NotReady;
     m_vc->SetSource(std::move(capSrc));
     EXPECT_EQ(m_vc->GetState(), PlayState::Play);
 
