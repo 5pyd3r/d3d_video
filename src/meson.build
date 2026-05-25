@@ -4,6 +4,7 @@ platform_src = files(
     'platform/CrashHandler.cpp',
     'platform/StreamUtils.cpp',
     'platform/ScreenCapture.cpp',
+    'platform/MessageLoop.cpp',
 )
 
 source_src = files(

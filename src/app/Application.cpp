@@ -187,6 +187,14 @@ void Application::StartCapturePicking() {
 
 Application::~Application() = default;
 
+void Application::OnIdle() {
+    m_controller->Render(m_window);
+}
+
+bool Application::OnMessage(MSG& msg) {
+    return HandleMessage(msg.hwnd, msg.message, msg.wParam, msg.lParam) != 0;
+}
+
 int Application::Run(HINSTANCE hInstance) {
     InitCrashHandler();
     SetProcessDPIAware();
@@ -233,17 +241,8 @@ int Application::Run(HINSTANCE hInstance) {
     m_controller = std::make_unique<VideoController>();
     m_controller->Init(m_device, m_deviceCtx, m_swapChain, clientWidth, clientHeight);
 
-    MSG msg;
-    while (1) {
-        BOOL hasMsg = PeekMessage(&msg, NULL, 0, 0, PM_REMOVE);
-        if (hasMsg) {
-            if (msg.message == WM_QUIT) break;
-            TranslateMessage(&msg);
-            DispatchMessage(&msg);
-        } else {
-            m_controller->Render(m_window);
-        }
-    }
+    MessageLoop loop;
+    int exitCode = loop.Run(m_window, static_cast<MessageLoop::ICallback*>(this));
 
     RevokeDragDrop(m_window);
     RoUninitialize();
@@ -253,7 +252,7 @@ int Application::Run(HINSTANCE hInstance) {
     if (m_swapChain) m_swapChain->Release();
     if (m_device) m_device->Release();
     ShutdownCrashHandler();
-    return 0;
+    return exitCode;
 }
 
 bool Application::InitD3D11(HWND window) {
@@ -296,10 +295,15 @@ bool Application::InitD3D11(HWND window) {
 }
 
 LRESULT CALLBACK Application::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
+    if (g_app)
+        return g_app->HandleMessage(hwnd, msg, wParam, lParam);
+    return DefWindowProc(hwnd, msg, wParam, lParam);
+}
+
+LRESULT Application::HandleMessage(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
     switch (msg) {
     case WM_SIZE: {
-        auto* app = g_app;
-        if (app && app->m_controller) {
+        if (m_controller) {
             auto width = GET_X_LPARAM(lParam);
             auto height = GET_Y_LPARAM(lParam);
             if ((GetWindowLongPtr(hwnd, GWL_STYLE) & (WS_VISIBLE | WS_POPUP | WS_CLIPSIBLINGS)) == (WS_VISIBLE | WS_POPUP | WS_CLIPSIBLINGS)) {
@@ -308,7 +312,7 @@ LRESULT CALLBACK Application::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM
                 width = width - (cr.right - cr.left - 100);
                 height = height - (cr.bottom - cr.top - 100);
             }
-            app->m_controller->ResizeSwapChain(width, height);
+            m_controller->ResizeSwapChain(width, height);
         }
         return 0;
     }
@@ -332,9 +336,9 @@ LRESULT CALLBACK Application::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM
         return DefWindowProc(hwnd, msg, wParam, lParam);
     }
     case WM_LBUTTONDOWN:
-        if (g_app && g_app->m_pickingMode) {
+        if (m_pickingMode) {
             ReleaseCapture();
-            g_app->m_pickingMode = false;
+            m_pickingMode = false;
 
             POINT pt = { GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam) };
             ClientToScreen(hwnd, &pt);
@@ -342,15 +346,12 @@ LRESULT CALLBACK Application::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM
             if (targetHwnd && targetHwnd != hwnd) {
                 logger->info("Capture: attempting to capture HWND=0x{:X}", (uint64_t)targetHwnd);
 
-                auto captureSource = std::make_unique<CaptureSource>(targetHwnd, g_app->m_device);
+                auto captureSource = std::make_unique<CaptureSource>(targetHwnd, m_device);
 
-                g_app->m_controller->SetSource(std::move(captureSource));
-                auto* src = g_app->m_controller->GetSource();
+                m_controller->SetSource(std::move(captureSource));
+                auto* src = m_controller->GetSource();
                 if (src) {
-                    // Must call InitCapture AFTER SetSource so we know the actual capture size.
-                    // If the capture texture size doesn't match the frame pool texture size,
-                    // CopySubresourceRegion in ProcessFrame would produce garbled output.
-                    auto* vq = g_app->m_controller->GetVideoQuad();
+                    auto* vq = m_controller->GetVideoQuad();
                     vq->InitCapture(src->GetWidth(), src->GetHeight());
                     SetWindowTextW(hwnd, (L"Capturing: " + u2w(src->GetTitle())).c_str());
                     logger->info("Capture started: {}x{}", src->GetWidth(), src->GetHeight());
@@ -365,18 +366,16 @@ LRESULT CALLBACK Application::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM
         break;
     case WM_KEYDOWN:
         if (wParam == VK_ESCAPE) {
-            if (g_app && g_app->m_pickingMode) {
+            if (m_pickingMode) {
                 ReleaseCapture();
-                g_app->m_pickingMode = false;
-            } else if (g_app && g_app->m_controller && g_app->m_controller->GetSource()) {
-                g_app->m_controller->StopSource();
+                m_pickingMode = false;
+            } else if (m_controller && m_controller->GetSource()) {
+                m_controller->StopSource();
                 SetWindowTextW(hwnd, L"D3D Video");
             }
         }
         if (wParam == 0x43 && (GetKeyState(VK_CONTROL) & 0x8000) && (GetKeyState(VK_SHIFT) & 0x8000)) {
-            if (g_app) {
-                g_app->StartCapturePicking();
-            }
+            StartCapturePicking();
             break;
         }
         if (wParam == VK_F11) {
@@ -406,8 +405,6 @@ LRESULT CALLBACK Application::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM
     case WM_DESTROY:
         PostQuitMessage(0);
         return 0;
-    default:
-        return DefWindowProc(hwnd, msg, wParam, lParam);
     }
-    return 0;
+    return DefWindowProc(hwnd, msg, wParam, lParam);
 }

@@ -9,8 +9,9 @@
 #include <memory>
 
 #include "../playback/VideoController.h"
+#include "../platform/MessageLoop.h"
 
-class Application : public IDropTarget {
+class Application : public IDropTarget, public MessageLoop::ICallback {
 public:
     int Run(HINSTANCE hInstance);
     ~Application();
@@ -26,8 +27,13 @@ public:
     STDMETHOD(DragLeave)() override;
     STDMETHOD(Drop)(IDataObject* pDataObj, DWORD grfKeyState, POINTL pt, DWORD* pdwEffect) override;
 
+    // MessageLoop::ICallback
+    void OnIdle() override;
+    bool OnMessage(MSG& msg) override;
+
 private:
     static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
+    LRESULT HandleMessage(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
     bool InitD3D11(HWND window);
 
     void HandleFileDrop(IDataObject* pDataObj);
