@@ -44,6 +44,7 @@ test('VideoControllerIntegration',
         '../src/playback/TextureUpdater.cpp',
         '../src/render/VideoQuad.cpp',
         '../src/render/SwapChainManager.cpp',
+        '../src/platform/Logger.cpp',
         vshader, pshader, cpshader,
         include_directories: include_directories('../src'),
         dependencies: [gtest_dep, libavcodec, libavformat, libavutil, spdlog]))
