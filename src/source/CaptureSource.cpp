@@ -48,6 +48,10 @@ bool CaptureSource::ReadFrame(VideoFrame& out, ID3D11DeviceContext* ctx, nv::Vid
     return ok;
 }
 
+RenderDescriptor CaptureSource::GetRenderDescriptor(nv::VideoQuad* vq) const {
+    return { vq->GetCapturePixelShader(), { vq->GetCaptureSRV(), nullptr } };
+}
+
 void CaptureSource::Close() {
     m_capture.StopCapture();
 }
