@@ -27,10 +27,23 @@ test('VideoDecoder',
         '../src/platform/Logger.cpp',
         dependencies: [gtest_dep, libavcodec, libavformat, libavutil, libavutil, spdlog]))
 
-test('PlaybackPipeline',
-    executable('test_playback_pipeline',
-        'playback/PlaybackController_test.cpp',
-        '../src/source/MediaSource.cpp',
-        '../src/decode/VideoDecoder.cpp',
-        '../src/platform/Logger.cpp',
-        dependencies: [gtest_dep, libavcodec, libavformat, libavutil, libavutil, spdlog]))
+test('VideoController',
+    executable('test_video_controller',
+        'playback/VideoController_test.cpp',
+        dependencies: [gtest_dep]))
+
+test('IVideoSourceContract',
+    executable('test_ivideo_source_contract',
+        'source/IVideoSource_contract_test.cpp',
+        dependencies: [gtest_dep]))
+
+test('VideoControllerIntegration',
+    executable('test_video_controller_integration',
+        'playback/VideoControllerIntegration_test.cpp',
+        '../src/playback/VideoController.cpp',
+        '../src/playback/TextureUpdater.cpp',
+        '../src/render/VideoQuad.cpp',
+        '../src/render/SwapChainManager.cpp',
+        vshader, pshader, cpshader,
+        include_directories: include_directories('../src'),
+        dependencies: [gtest_dep, libavcodec, libavformat, libavutil, spdlog]))

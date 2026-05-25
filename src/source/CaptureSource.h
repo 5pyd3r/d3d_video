@@ -17,6 +17,7 @@ public:
     int GetWidth() const override { return m_width; }
     int GetHeight() const override { return m_height; }
     const char* GetTitle() const override { return m_title.c_str(); }
+    double GetFrameDuration() const override { return 1.0 / 30.0; }
 
     HWND GetTargetWindow() const { return m_targetWindow; }
 

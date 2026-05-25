@@ -49,3 +49,25 @@ TEST(StringUtilsTest, IsVideoFile_PathWithDots) {
     EXPECT_TRUE(IsVideoFile("C:\\videos\\movie.2024.mp4"));
     EXPECT_FALSE(IsVideoFile(".gitignore"));
 }
+
+// --- ComputeFrameDuration ---
+
+TEST(StringUtilsTest, ComputeFrameDuration_30fps) {
+    EXPECT_DOUBLE_EQ(ComputeFrameDuration(30.0), 1.0 / 30.0);
+}
+
+TEST(StringUtilsTest, ComputeFrameDuration_60fps) {
+    EXPECT_DOUBLE_EQ(ComputeFrameDuration(60.0), 1.0 / 60.0);
+}
+
+TEST(StringUtilsTest, ComputeFrameDuration_Zero_DefaultsTo30fps) {
+    EXPECT_DOUBLE_EQ(ComputeFrameDuration(0.0), 1.0 / 30.0);
+}
+
+TEST(StringUtilsTest, ComputeFrameDuration_Negative_DefaultsTo30fps) {
+    EXPECT_DOUBLE_EQ(ComputeFrameDuration(-1.0), 1.0 / 30.0);
+}
+
+TEST(StringUtilsTest, ComputeFrameDuration_120fps) {
+    EXPECT_DOUBLE_EQ(ComputeFrameDuration(120.0), 1.0 / 120.0);
+}
