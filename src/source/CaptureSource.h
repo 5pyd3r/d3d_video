@@ -11,9 +11,8 @@ public:
     ~CaptureSource() override;
 
     bool Init() override;
-    bool ReadFrame(VideoFrame& out, ID3D11DeviceContext* ctx, nv::VideoQuad* vq) override;
+    FrameResult ReadFrame(VideoFrame& out, ID3D11DeviceContext* ctx, nv::VideoQuad* vq) override;
     void Close() override;
-    SourceType GetType() const override { return SourceType::Capture; }
     int GetWidth() const override { return m_width; }
     int GetHeight() const override { return m_height; }
     const char* GetTitle() const override { return m_title.c_str(); }

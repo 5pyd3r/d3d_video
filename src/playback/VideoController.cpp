@@ -78,21 +78,18 @@ uint32_t VideoController::Render(HWND hwnd) {
     }
 
     VideoFrame frame = {};
-    bool gotFrame = m_source->ReadFrame(frame, m_deviceCtx, m_vq.get());
+    FrameResult result = m_source->ReadFrame(frame, m_deviceCtx, m_vq.get());
 
-    if (gotFrame) {
+    if (result == FrameResult::Got) {
         m_frameCount++;
         if (frame.width > 0 && frame.height > 0) {
             m_videoWidth = frame.width;
             m_videoHeight = frame.height;
         }
-        Draw(hwnd);
-    } else {
-        // File EOF. Capture: no frame ready yet, keep going.
-        if (m_source->GetType() == SourceType::File) {
-            m_state = PlayState::Stop;
-        }
-        Draw(hwnd);
+    } else if (result == FrameResult::End) {
+        m_state = PlayState::Stop;
     }
+    // NotReady: keep current state, redraw existing frame
+    Draw(hwnd);
     return 0;
 }

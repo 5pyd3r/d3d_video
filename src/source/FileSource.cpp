@@ -38,7 +38,7 @@ bool FileSource::Init() {
     return true;
 }
 
-bool FileSource::ReadFrame(VideoFrame& out, ID3D11DeviceContext* ctx, nv::VideoQuad* vq) {
+FrameResult FileSource::ReadFrame(VideoFrame& out, ID3D11DeviceContext* ctx, nv::VideoQuad* vq) {
     // Decode until we get a video frame or run out of packets
     for (;;) {
         AVPacket* packet = m_mediaSource.ReadPacket();
@@ -50,7 +50,7 @@ bool FileSource::ReadFrame(VideoFrame& out, ID3D11DeviceContext* ctx, nv::VideoQ
                 m_frame = flushResult.frame;
                 break;
             }
-            return false;  // EOF
+            return FrameResult::End;  // EOF
         }
 
         auto decoded = m_decoder.SendAndReceive(packet);
@@ -65,7 +65,7 @@ bool FileSource::ReadFrame(VideoFrame& out, ID3D11DeviceContext* ctx, nv::VideoQ
         }
     }
 
-    if (!m_frame || !m_frame->data[0]) return false;
+    if (!m_frame || !m_frame->data[0]) return FrameResult::End;
 
     // Copy decoded NV12 hardware frame into VideoQuad's shared texture
     HANDLE sharedHandle = vq->GetsharedHandle();
@@ -75,7 +75,7 @@ bool FileSource::ReadFrame(VideoFrame& out, ID3D11DeviceContext* ctx, nv::VideoQ
     out.width = m_width;
     out.height = m_height;
     out.type = SourceType::File;
-    return true;
+    return FrameResult::Got;
 }
 
 RenderDescriptor FileSource::GetRenderDescriptor(nv::VideoQuad* vq) const {

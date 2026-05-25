@@ -23,10 +23,12 @@ bool PlaylistSource::OpenCurrent() {
     return false;
 }
 
-bool PlaylistSource::ReadFrame(VideoFrame& out, ID3D11DeviceContext* ctx, nv::VideoQuad* vq) {
-    if (!m_currentSource) return false;
+FrameResult PlaylistSource::ReadFrame(VideoFrame& out, ID3D11DeviceContext* ctx, nv::VideoQuad* vq) {
+    if (!m_currentSource) return FrameResult::End;
 
-    if (m_currentSource->ReadFrame(out, ctx, vq)) return true;
+    FrameResult result = m_currentSource->ReadFrame(out, ctx, vq);
+    if (result == FrameResult::Got) return FrameResult::Got;
+    if (result == FrameResult::NotReady) return FrameResult::NotReady;
 
     // Current file ended — try next
     if (m_index + 1 < m_files.size()) {
@@ -35,7 +37,7 @@ bool PlaylistSource::ReadFrame(VideoFrame& out, ID3D11DeviceContext* ctx, nv::Vi
         if (OpenCurrent())
             return m_currentSource->ReadFrame(out, ctx, vq);
     }
-    return false;  // Playlist exhausted
+    return FrameResult::End;  // Playlist exhausted
 }
 
 void PlaylistSource::Close() {
