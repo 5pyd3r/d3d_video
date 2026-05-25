@@ -8,8 +8,9 @@ public:
     struct ICallback {
         virtual ~ICallback() = default;
         virtual void OnIdle() = 0;
-        // Return true if message was handled and should NOT be dispatched.
-        virtual bool OnMessage(MSG& msg) = 0;
+        // Set handled=true and return the LRESULT if handled.
+        // Leave handled=false to dispatch via Translate/Dispatch.
+        virtual LRESULT OnMessage(MSG& msg, bool& handled) = 0;
     };
 
     int Run(HWND hwnd, ICallback* cb);
