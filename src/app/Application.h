@@ -7,6 +7,8 @@
 #include <ole2.h>
 
 #include <memory>
+#include <functional>
+#include <unordered_map>
 
 #include "../playback/VideoController.h"
 #include "../platform/MessageLoop.h"
@@ -29,12 +31,15 @@ public:
 
     // MessageLoop::ICallback
     void OnIdle() override;
-    bool OnMessage(MSG& msg) override;
+    LRESULT OnMessage(MSG& msg, bool& handled) override;
 
 private:
     static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
-    LRESULT HandleMessage(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
     bool InitD3D11(HWND window);
+    void InitHandlers();
+
+    using MsgHandler = std::function<LRESULT(MSG&, bool&)>;
+    std::unordered_map<UINT, MsgHandler> m_handlers;
 
     void HandleFileDrop(IDataObject* pDataObj);
     void HandleTextDrop(IDataObject* pDataObj);

@@ -191,8 +191,123 @@ void Application::OnIdle() {
     m_controller->Render(m_window);
 }
 
-bool Application::OnMessage(MSG& msg) {
-    return HandleMessage(msg.hwnd, msg.message, msg.wParam, msg.lParam) != 0;
+LRESULT Application::OnMessage(MSG& msg, bool& handled) {
+    auto it = m_handlers.find(msg.message);
+    if (it != m_handlers.end())
+        return it->second(msg, handled);
+    return 0;
+}
+
+void Application::InitHandlers() {
+    m_handlers[WM_SIZE] = [this](MSG& m, bool& handled) -> LRESULT {
+        if (m_controller) {
+            auto width = GET_X_LPARAM(m.lParam);
+            auto height = GET_Y_LPARAM(m.lParam);
+            if ((GetWindowLongPtr(m.hwnd, GWL_STYLE) & (WS_VISIBLE | WS_POPUP | WS_CLIPSIBLINGS)) == (WS_VISIBLE | WS_POPUP | WS_CLIPSIBLINGS)) {
+                RECT cr = {0, 0, 100, 100};
+                AdjustWindowRect(&cr, WS_OVERLAPPEDWINDOW, FALSE);
+                width = width - (cr.right - cr.left - 100);
+                height = height - (cr.bottom - cr.top - 100);
+            }
+            m_controller->ResizeSwapChain(width, height);
+        }
+        handled = true; return 0;
+    };
+
+    m_handlers[WM_NCHITTEST] = [](MSG& m, bool& handled) -> LRESULT {
+        if (GetKeyState(VK_MENU) & 0x8000) {
+            RECT r; GetWindowRect(m.hwnd, &r);
+            long x = GET_X_LPARAM(m.lParam), y = GET_Y_LPARAM(m.lParam);
+            const int bw = 8;
+            handled = true;
+            if (x >= r.left && x < r.left + bw && y >= r.top && y < r.top + bw) return HTTOPLEFT;
+            if (x < r.right && x >= r.right - bw && y >= r.top && y < r.top + bw) return HTTOPRIGHT;
+            if (x >= r.left && x < r.left + bw && y < r.bottom && y >= r.bottom - bw) return HTBOTTOMLEFT;
+            if (x < r.right && x >= r.right - bw && y < r.bottom && y >= r.bottom - bw) return HTBOTTOMRIGHT;
+            if (x >= r.left && x < r.left + bw) return HTLEFT;
+            if (x < r.right && x >= r.right - bw) return HTRIGHT;
+            if (y >= r.top && y < r.top + bw) return HTTOP;
+            if (y < r.bottom && y >= r.bottom - bw) return HTBOTTOM;
+            return HTCAPTION;
+        }
+        return 0;
+    };
+
+    m_handlers[WM_LBUTTONDOWN] = [this](MSG& m, bool& handled) -> LRESULT {
+        if (m_pickingMode) {
+            ReleaseCapture();
+            m_pickingMode = false;
+
+            POINT pt = { GET_X_LPARAM(m.lParam), GET_Y_LPARAM(m.lParam) };
+            ClientToScreen(m.hwnd, &pt);
+            HWND targetHwnd = WindowFromPoint(pt);
+            if (targetHwnd && targetHwnd != m.hwnd) {
+                logger->info("Capture: attempting to capture HWND=0x{:X}", (uint64_t)targetHwnd);
+
+                auto captureSource = std::make_unique<CaptureSource>(targetHwnd, m_device);
+                m_controller->SetSource(std::move(captureSource));
+                auto* src = m_controller->GetSource();
+                if (src) {
+                    auto* vq = m_controller->GetVideoQuad();
+                    vq->InitCapture(src->GetWidth(), src->GetHeight());
+                    SetWindowTextW(m.hwnd, (L"Capturing: " + u2w(src->GetTitle())).c_str());
+                    logger->info("Capture started: {}x{}", src->GetWidth(), src->GetHeight());
+                } else {
+                    SetWindowTextW(m.hwnd, L"D3D Video");
+                }
+            } else {
+                logger->info("Capture: target window is self or null (0x{:X})", (uint64_t)targetHwnd);
+            }
+        }
+        return 0;
+    };
+
+    m_handlers[WM_KEYDOWN] = [this](MSG& m, bool& handled) -> LRESULT {
+        if (m.wParam == VK_ESCAPE) {
+            if (m_pickingMode) {
+                ReleaseCapture();
+                m_pickingMode = false;
+            } else if (m_controller && m_controller->GetSource()) {
+                m_controller->StopSource();
+                SetWindowTextW(m.hwnd, L"D3D Video");
+            }
+        }
+        if (m.wParam == 0x43 && (GetKeyState(VK_CONTROL) & 0x8000) && (GetKeyState(VK_SHIFT) & 0x8000)) {
+            StartCapturePicking();
+            handled = true; return 0;
+        }
+        if (m.wParam == VK_F11) {
+            g_isFullscreen = !g_isFullscreen;
+            if (g_isFullscreen) {
+                GetWindowRect(m.hwnd, &g_windowedRect);
+                HMONITOR hMonitor = MonitorFromWindow(m.hwnd, MONITOR_DEFAULTTONEAREST);
+                MONITORINFO mi;
+                mi.cbSize = sizeof(MONITORINFO);
+                GetMonitorInfo(hMonitor, &mi);
+                SetWindowPos(m.hwnd, HWND_TOP,
+                    mi.rcMonitor.left, mi.rcMonitor.top,
+                    mi.rcMonitor.right - mi.rcMonitor.left,
+                    mi.rcMonitor.bottom - mi.rcMonitor.top,
+                    SWP_NOOWNERZORDER | SWP_FRAMECHANGED);
+            } else {
+                SetWindowPos(m.hwnd, HWND_NOTOPMOST,
+                    g_windowedRect.left, g_windowedRect.top,
+                    g_windowedRect.right - g_windowedRect.left,
+                    g_windowedRect.bottom - g_windowedRect.top,
+                    SWP_NOOWNERZORDER | SWP_FRAMECHANGED);
+            }
+        }
+        handled = true; return 0;
+    };
+
+    m_handlers[WM_KEYUP] = [](MSG&, bool& handled) -> LRESULT {
+        handled = true; return 0;
+    };
+
+    m_handlers[WM_DESTROY] = [](MSG&, bool& handled) -> LRESULT {
+        PostQuitMessage(0);
+        handled = true; return 0;
+    };
 }
 
 int Application::Run(HINSTANCE hInstance) {
@@ -240,6 +355,8 @@ int Application::Run(HINSTANCE hInstance) {
 
     m_controller = std::make_unique<VideoController>();
     m_controller->Init(m_device, m_deviceCtx, m_swapChain, clientWidth, clientHeight);
+
+    InitHandlers();
 
     MessageLoop loop;
     int exitCode = loop.Run(m_window, static_cast<MessageLoop::ICallback*>(this));
@@ -295,116 +412,9 @@ bool Application::InitD3D11(HWND window) {
 }
 
 LRESULT CALLBACK Application::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
-    if (g_app)
-        return g_app->HandleMessage(hwnd, msg, wParam, lParam);
-    return DefWindowProc(hwnd, msg, wParam, lParam);
-}
-
-LRESULT Application::HandleMessage(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
-    switch (msg) {
-    case WM_SIZE: {
-        if (m_controller) {
-            auto width = GET_X_LPARAM(lParam);
-            auto height = GET_Y_LPARAM(lParam);
-            if ((GetWindowLongPtr(hwnd, GWL_STYLE) & (WS_VISIBLE | WS_POPUP | WS_CLIPSIBLINGS)) == (WS_VISIBLE | WS_POPUP | WS_CLIPSIBLINGS)) {
-                RECT cr = {0, 0, 100, 100};
-                AdjustWindowRect(&cr, WS_OVERLAPPEDWINDOW, FALSE);
-                width = width - (cr.right - cr.left - 100);
-                height = height - (cr.bottom - cr.top - 100);
-            }
-            m_controller->ResizeSwapChain(width, height);
-        }
-        return 0;
-    }
-    case WM_NCHITTEST: {
-        if (GetKeyState(VK_MENU) & 0x8000) {
-            RECT windowRect;
-            GetWindowRect(hwnd, &windowRect);
-            long x = GET_X_LPARAM(lParam);
-            long y = GET_Y_LPARAM(lParam);
-            const int bw = 8;
-            if (x >= windowRect.left && x < windowRect.left + bw && y >= windowRect.top && y < windowRect.top + bw) return HTTOPLEFT;
-            if (x < windowRect.right && x >= windowRect.right - bw && y >= windowRect.top && y < windowRect.top + bw) return HTTOPRIGHT;
-            if (x >= windowRect.left && x < windowRect.left + bw && y < windowRect.bottom && y >= windowRect.bottom - bw) return HTBOTTOMLEFT;
-            if (x < windowRect.right && x >= windowRect.right - bw && y < windowRect.bottom && y >= windowRect.bottom - bw) return HTBOTTOMRIGHT;
-            if (x >= windowRect.left && x < windowRect.left + bw) return HTLEFT;
-            if (x < windowRect.right && x >= windowRect.right - bw) return HTRIGHT;
-            if (y >= windowRect.top && y < windowRect.top + bw) return HTTOP;
-            if (y < windowRect.bottom && y >= windowRect.bottom - bw) return HTBOTTOM;
-            return HTCAPTION;
-        }
-        return DefWindowProc(hwnd, msg, wParam, lParam);
-    }
-    case WM_LBUTTONDOWN:
-        if (m_pickingMode) {
-            ReleaseCapture();
-            m_pickingMode = false;
-
-            POINT pt = { GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam) };
-            ClientToScreen(hwnd, &pt);
-            HWND targetHwnd = WindowFromPoint(pt);
-            if (targetHwnd && targetHwnd != hwnd) {
-                logger->info("Capture: attempting to capture HWND=0x{:X}", (uint64_t)targetHwnd);
-
-                auto captureSource = std::make_unique<CaptureSource>(targetHwnd, m_device);
-
-                m_controller->SetSource(std::move(captureSource));
-                auto* src = m_controller->GetSource();
-                if (src) {
-                    auto* vq = m_controller->GetVideoQuad();
-                    vq->InitCapture(src->GetWidth(), src->GetHeight());
-                    SetWindowTextW(hwnd, (L"Capturing: " + u2w(src->GetTitle())).c_str());
-                    logger->info("Capture started: {}x{}", src->GetWidth(), src->GetHeight());
-                } else {
-                    SetWindowTextW(hwnd, L"D3D Video");
-                }
-            } else {
-                logger->info("Capture: target window is self or null (0x{:X})", (uint64_t)targetHwnd);
-            }
-            break;
-        }
-        break;
-    case WM_KEYDOWN:
-        if (wParam == VK_ESCAPE) {
-            if (m_pickingMode) {
-                ReleaseCapture();
-                m_pickingMode = false;
-            } else if (m_controller && m_controller->GetSource()) {
-                m_controller->StopSource();
-                SetWindowTextW(hwnd, L"D3D Video");
-            }
-        }
-        if (wParam == 0x43 && (GetKeyState(VK_CONTROL) & 0x8000) && (GetKeyState(VK_SHIFT) & 0x8000)) {
-            StartCapturePicking();
-            break;
-        }
-        if (wParam == VK_F11) {
-            g_isFullscreen = !g_isFullscreen;
-            if (g_isFullscreen) {
-                GetWindowRect(hwnd, &g_windowedRect);
-                HMONITOR hMonitor = MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST);
-                MONITORINFO mi;
-                mi.cbSize = sizeof(MONITORINFO);
-                GetMonitorInfo(hMonitor, &mi);
-                SetWindowPos(hwnd, HWND_TOP,
-                    mi.rcMonitor.left, mi.rcMonitor.top,
-                    mi.rcMonitor.right - mi.rcMonitor.left,
-                    mi.rcMonitor.bottom - mi.rcMonitor.top,
-                    SWP_NOOWNERZORDER | SWP_FRAMECHANGED);
-            } else {
-                SetWindowPos(hwnd, HWND_NOTOPMOST,
-                    g_windowedRect.left, g_windowedRect.top,
-                    g_windowedRect.right - g_windowedRect.left,
-                    g_windowedRect.bottom - g_windowedRect.top,
-                    SWP_NOOWNERZORDER | SWP_FRAMECHANGED);
-            }
-        }
-        break;
-    case WM_KEYUP:
-        return 0;
-    case WM_DESTROY:
-        PostQuitMessage(0);
-        return 0;
-    }
-    return DefWindowProc(hwnd, msg, wParam, lParam);
+    if (!g_app) return DefWindowProc(hwnd, msg, wParam, lParam);
+    MSG m = { hwnd, msg, wParam, lParam };
+    bool handled = false;
+    LRESULT result = g_app->OnMessage(m, handled);
+    return handled ? result : DefWindowProc(hwnd, msg, wParam, lParam);
 }

@@ -8,10 +8,11 @@ int MessageLoop::Run(HWND hwnd, ICallback* cb) {
         BOOL hasMsg = PeekMessage(&msg, nullptr, 0, 0, PM_REMOVE);
         if (hasMsg) {
             if (msg.message == WM_QUIT) break;
-            if (!cb->OnMessage(msg)) {
-                TranslateMessage(&msg);
-                DispatchMessage(&msg);
-            }
+            bool handled = false;
+            cb->OnMessage(msg, handled);
+            if (handled) continue;
+            TranslateMessage(&msg);
+            DispatchMessage(&msg);
         } else {
             cb->OnIdle();
         }
