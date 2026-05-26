@@ -10,6 +10,7 @@
 #include "../detect/GrayscaleFilter.h"
 
 #include <windowsx.h>
+#include <imm.h>
 #include <ShlObj.h>
 #include <roapi.h>
 #include <vector>
@@ -502,6 +503,8 @@ int Application::Run(HINSTANCE hInstance) {
         WS_POPUP | WS_VISIBLE, CW_USEDEFAULT, CW_USEDEFAULT,
         DEFAULT_WINDOW_WIDTH, DEFAULT_WINDOW_HEIGHT,
         NULL, NULL, hInstance, NULL);
+
+    ImmAssociateContext(m_window, NULL);
 
     OleInitialize(NULL);
     HRESULT hrRoInit = RoInitialize(RO_INIT_SINGLETHREADED);

@@ -123,7 +123,8 @@ gsbgrashader = custom_target(
 dbghelp = meson.get_compiler('cpp').find_library('dbghelp', required: true)
 psapi = meson.get_compiler('cpp').find_library('psapi', required: true)
 windowsapp = meson.get_compiler('cpp').find_library('windowsapp', required: true)
+imm32 = meson.get_compiler('cpp').find_library('imm32', required: true)
 
 executable('d3d_video', [d3d_video_src, platform_src, source_src, decode_src, render_src, playback_src, app_src, detect_src, vshader, pshader, cpshader, gsnv12shader, gsbgrashader],
-    dependencies: [libavcodec, libavformat, libavutil, spdlog, dbghelp, psapi, windowsapp],
+    dependencies: [libavcodec, libavformat, libavutil, spdlog, dbghelp, psapi, windowsapp, imm32],
     win_subsystem: 'windows')
