@@ -183,6 +183,82 @@ void Application::StartCapturePicking() {
     logger->info("Capture picking mode: click a window to capture");
 }
 
+Application::SnapTarget Application::ComputeSnapTarget(HWND hwnd, const RECT& windowRect) {
+    const int threshold = m_previewVisible ? 157 : 147;
+
+    HMONITOR hMonitor = MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST);
+    MONITORINFO mi = {};
+    mi.cbSize = sizeof(MONITORINFO);
+    if (!GetMonitorInfo(hMonitor, &mi)) return {};
+
+    RECT m = mi.rcMonitor;
+    int winW = windowRect.right - windowRect.left;
+    int winH = windowRect.bottom - windowRect.top;
+    int monW = m.right - m.left;
+    int monH = m.bottom - m.top;
+
+    // Skip if window larger than monitor
+    if (winW > monW || winH > monH) return {};
+
+    int d_left   = windowRect.left - m.left;
+    int d_right  = m.right - windowRect.right;
+    int d_top    = windowRect.top - m.top;
+    int d_bottom = m.bottom - windowRect.bottom;
+
+    bool snapLeft   = d_left >= 0 && d_left <= threshold;
+    bool snapRight  = d_right >= 0 && d_right <= threshold;
+    bool snapTop    = d_top >= 0 && d_top <= threshold;
+    bool snapBottom = d_bottom >= 0 && d_bottom <= threshold;
+
+    if (!snapLeft && !snapRight && !snapTop && !snapBottom) return {};
+
+    SnapTarget target;
+    target.active = true;
+    target.x = windowRect.left;
+    target.y = windowRect.top;
+
+    if (snapLeft)  target.x = m.left;
+    if (snapRight) target.x = m.right - winW;
+    if (snapTop)    target.y = m.top;
+    if (snapBottom) target.y = m.bottom - winH;
+
+    return target;
+}
+
+void Application::CreatePreviewWindow() {
+    static bool registered = false;
+    if (!registered) {
+        WNDCLASSW wc = {};
+        wc.hInstance = GetModuleHandle(nullptr);
+        wc.lpszClassName = L"SnapPreview";
+        wc.hbrBackground = CreateSolidBrush(RGB(0, 120, 215));
+        wc.lpfnWndProc = DefWindowProc;
+        RegisterClassW(&wc);
+        registered = true;
+    }
+    m_hwndPreview = CreateWindowExW(
+        WS_EX_LAYERED | WS_EX_TRANSPARENT | WS_EX_TOOLWINDOW,
+        L"SnapPreview", L"",
+        WS_POPUP,
+        0, 0, 100, 100,
+        nullptr, nullptr, GetModuleHandle(nullptr), nullptr);
+    SetLayeredWindowAttributes(m_hwndPreview, 0, 80, LWA_ALPHA);
+}
+
+void Application::UpdatePreviewWindow(int x, int y, int w, int h) {
+    if (!m_hwndPreview) CreatePreviewWindow();
+    SetWindowPos(m_hwndPreview, HWND_TOP, x, y, w, h,
+        SWP_NOACTIVATE | SWP_SHOWWINDOW);
+    m_previewVisible = true;
+}
+
+void Application::HidePreviewWindow() {
+    if (m_hwndPreview && m_previewVisible) {
+        ShowWindow(m_hwndPreview, SW_HIDE);
+        m_previewVisible = false;
+    }
+}
+
 // --- Application -------------------------------------------------------------
 
 Application::~Application() = default;
@@ -304,7 +380,49 @@ void Application::InitHandlers() {
         handled = true; return 0;
     };
 
-    m_handlers[WM_DESTROY] = [](MSG&, bool& handled) -> LRESULT {
+    m_handlers[WM_ENTERSIZEMOVE] = [this](MSG& m, bool& handled) -> LRESULT {
+        if (g_isFullscreen || !(GetKeyState(VK_MENU) & 0x8000)) return 0;
+        return 0;
+    };
+
+    m_handlers[WM_MOVING] = [this](MSG& m, bool& handled) -> LRESULT {
+        if (g_isFullscreen || !(GetKeyState(VK_MENU) & 0x8000)) return 0;
+        m_moveActive = true;
+        RECT* pr = reinterpret_cast<RECT*>(m.lParam);
+        auto target = ComputeSnapTarget(m.hwnd, *pr);
+        if (target.active) {
+            int w = pr->right - pr->left;
+            int h = pr->bottom - pr->top;
+            UpdatePreviewWindow(target.x, target.y, w, h);
+        } else {
+            HidePreviewWindow();
+        }
+        return 0;
+    };
+
+    m_handlers[WM_EXITSIZEMOVE] = [this](MSG& m, bool& handled) -> LRESULT {
+        if (g_isFullscreen || !m_moveActive) return 0;
+        m_moveActive = false;
+
+        RECT wr;
+        GetWindowRect(m.hwnd, &wr);
+        // Compute snap while m_previewVisible still reflects drag state,
+        // so hysteresis threshold is used if preview was showing.
+        auto target = ComputeSnapTarget(m.hwnd, wr);
+        HidePreviewWindow();
+
+        if (target.active) {
+            SetWindowPos(m.hwnd, nullptr, target.x, target.y, 0, 0,
+                SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE);
+        }
+        handled = false; return 0;
+    };
+
+    m_handlers[WM_DESTROY] = [this](MSG&, bool& handled) -> LRESULT {
+        if (m_hwndPreview) {
+            DestroyWindow(m_hwndPreview);
+            m_hwndPreview = nullptr;
+        }
         PostQuitMessage(0);
         handled = true; return 0;
     };
