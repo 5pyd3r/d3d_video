@@ -37,6 +37,12 @@ test('IVideoSourceContract',
         'source/IVideoSource_contract_test.cpp',
         dependencies: [gtest_dep]))
 
+test('DetectionSource',
+    executable('test_detection_source',
+        'detect/DetectionSource_test.cpp',
+        '../src/detect/DetectionSource.cpp',
+        dependencies: [gtest_dep]))
+
 test('VideoControllerIntegration',
     executable('test_video_controller_integration',
         'playback/VideoControllerIntegration_test.cpp',
