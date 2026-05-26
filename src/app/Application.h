@@ -44,6 +44,7 @@ private:
     void HandleFileDrop(IDataObject* pDataObj);
     void HandleTextDrop(IDataObject* pDataObj);
     void StartCapturePicking();
+    std::unique_ptr<IVideoSource> WrapSource(std::unique_ptr<IVideoSource> inner);
 
     IDXGISwapChain* m_swapChain = nullptr;
     ID3D11Device* m_device = nullptr;

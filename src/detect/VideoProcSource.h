@@ -1,18 +1,23 @@
-#ifndef DETECT_DETECTIONSOURCE_H
-#define DETECT_DETECTIONSOURCE_H
+#ifndef DETECT_VIDEOPROCSOURCE_H
+#define DETECT_VIDEOPROCSOURCE_H
 
 #include <memory>
 #include <vector>
 #include "../source/IVideoSource.h"
 #include "IDetector.h"
 #include "IAction.h"
+#include "IFilter.h"
 
-class DetectionSource : public IVideoSource {
+class VideoProcSource : public IVideoSource {
 public:
-    explicit DetectionSource(std::unique_ptr<IVideoSource> inner);
+    explicit VideoProcSource(std::unique_ptr<IVideoSource> inner);
 
     void AddDetector(std::unique_ptr<IDetector> detector);
     void AddAction(std::unique_ptr<IAction> action);
+    void AddFilter(std::unique_ptr<IFilter> filter);
+
+    void ToggleFilter();
+    bool IsFilterEnabled() const { return m_activeFilter >= 0; }
 
     // IVideoSource
     bool Init() override;
@@ -28,6 +33,8 @@ private:
     std::unique_ptr<IVideoSource> m_inner;
     std::vector<std::unique_ptr<IDetector>> m_detectors;
     std::vector<std::unique_ptr<IAction>> m_actions;
+    std::vector<std::unique_ptr<IFilter>> m_filters;
+    int m_activeFilter = -1;
 };
 
 #endif

@@ -6,6 +6,8 @@
 #include "../source/FileSource.h"
 #include "../source/CaptureSource.h"
 #include "../source/PlaylistSource.h"
+#include "../detect/VideoProcSource.h"
+#include "../detect/GrayscaleFilter.h"
 
 #include <windowsx.h>
 #include <ShlObj.h>
@@ -128,9 +130,9 @@ void Application::HandleFileDrop(IDataObject* pDataObj) {
     if (!playlist.empty()) {
         std::sort(playlist.begin(), playlist.end());
         if (playlist.size() == 1 && !hasDirectories) {
-            ctrl->SetSource(std::make_unique<FileSource>(playlist[0].c_str(), m_device));
+            ctrl->SetSource(WrapSource(std::make_unique<FileSource>(playlist[0].c_str(), m_device)));
         } else {
-            ctrl->SetSource(std::make_unique<PlaylistSource>(playlist, m_device));
+            ctrl->SetSource(WrapSource(std::make_unique<PlaylistSource>(playlist, m_device)));
         }
     }
 
@@ -164,9 +166,9 @@ void Application::HandleTextDrop(IDataObject* pDataObj) {
     if (!ctrl) return;
 
     if (IsStreamUri(text)) {
-        ctrl->SetSource(std::make_unique<FileSource>(text.c_str(), m_device));
+        ctrl->SetSource(WrapSource(std::make_unique<FileSource>(text.c_str(), m_device)));
     } else {
-        ctrl->SetSource(std::make_unique<FileSource>(text.c_str(), m_device));
+        ctrl->SetSource(WrapSource(std::make_unique<FileSource>(text.c_str(), m_device)));
     }
 
     auto* src = ctrl->GetSource();
@@ -263,6 +265,15 @@ void Application::HidePreviewWindow() {
 
 Application::~Application() = default;
 
+std::unique_ptr<IVideoSource> Application::WrapSource(std::unique_ptr<IVideoSource> inner) {
+    auto proc = std::make_unique<VideoProcSource>(std::move(inner));
+    auto filter = std::make_unique<GrayscaleFilter>();
+    if (filter->Init(m_device)) {
+        proc->AddFilter(std::move(filter));
+    }
+    return proc;
+}
+
 void Application::OnIdle() {
     m_controller->Render(m_window);
 }
@@ -321,7 +332,7 @@ void Application::InitHandlers() {
                 logger->info("Capture: attempting to capture HWND=0x{:X}", (uint64_t)targetHwnd);
 
                 auto captureSource = std::make_unique<CaptureSource>(targetHwnd, m_device);
-                m_controller->SetSource(std::move(captureSource));
+                m_controller->SetSource(WrapSource(std::move(captureSource)));
                 auto* src = m_controller->GetSource();
                 if (src) {
                     auto* vq = m_controller->GetVideoQuad();
@@ -348,8 +359,15 @@ void Application::InitHandlers() {
                 SetWindowTextW(m.hwnd, L"D3D Video");
             }
         }
-        if (m.wParam == 0x43 && (GetKeyState(VK_CONTROL) & 0x8000) && (GetKeyState(VK_SHIFT) & 0x8000)) {
+        if (m.wParam == 0x43) {
             StartCapturePicking();
+            handled = true; return 0;
+        }
+        if (m.wParam == 0x46) {
+            if (m_controller && m_controller->GetSource()) {
+                auto* proc = dynamic_cast<VideoProcSource*>(m_controller->GetSource());
+                if (proc) proc->ToggleFilter();
+            }
             handled = true; return 0;
         }
         if (m.wParam == VK_F11) {
