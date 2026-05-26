@@ -348,7 +348,7 @@ void Application::InitHandlers() {
                 SetWindowTextW(m.hwnd, L"D3D Video");
             }
         }
-        if (m.wParam == 0x43 && (GetKeyState(VK_CONTROL) & 0x8000) && (GetKeyState(VK_SHIFT) & 0x8000)) {
+        if (m.wParam == 0x43) {
             StartCapturePicking();
             handled = true; return 0;
         }
