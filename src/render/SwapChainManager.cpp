@@ -1,4 +1,5 @@
 #include "SwapChainManager.h"
+#include "../platform/Logger.h"
 
 SwapChainManager::SwapChainManager()
     : m_device(nullptr), m_deviceCtx(nullptr), m_swapChain(nullptr),
@@ -21,7 +22,10 @@ void SwapChainManager::Init(ID3D11Device* device, ID3D11DeviceContext* deviceCtx
 
     ID3D11Texture2D* backBuffer = nullptr;
     HRESULT hr = m_swapChain->GetBuffer(0, __uuidof(ID3D11Texture2D), (void**)&backBuffer);
-    if (FAILED(hr) || !backBuffer) return;
+    if (FAILED(hr) || !backBuffer) {
+        logger->error("SwapChainManager::Init: GetBuffer failed: 0x{:08X}", (uint32_t)hr);
+        return;
+    }
 
     DXGI_SWAP_CHAIN_DESC sd = {};
     m_swapChain->GetDesc(&sd);
@@ -32,7 +36,10 @@ void SwapChainManager::Init(ID3D11Device* device, ID3D11DeviceContext* deviceCtx
     rtvDesc.Texture2D.MipSlice = 0;
     hr = m_device->CreateRenderTargetView(backBuffer, &rtvDesc, &m_renderTargetView);
     backBuffer->Release();
-    if (FAILED(hr)) m_renderTargetView = nullptr;
+    if (FAILED(hr)) {
+        logger->error("SwapChainManager::Init: CreateRenderTargetView failed: 0x{:08X}", (uint32_t)hr);
+        m_renderTargetView = nullptr;
+    }
 }
 
 void SwapChainManager::Resize(int width, int height) {
@@ -50,7 +57,10 @@ void SwapChainManager::Resize(int width, int height) {
 
     ID3D11Texture2D* backBuffer = nullptr;
     HRESULT hr = m_swapChain->GetBuffer(0, __uuidof(ID3D11Texture2D), (void**)&backBuffer);
-    if (FAILED(hr) || !backBuffer) return;
+    if (FAILED(hr) || !backBuffer) {
+        logger->error("SwapChainManager::Resize: GetBuffer failed: 0x{:08X}", (uint32_t)hr);
+        return;
+    }
 
     D3D11_RENDER_TARGET_VIEW_DESC rtvDesc = {};
     rtvDesc.Format = desc.BufferDesc.Format;
@@ -58,7 +68,10 @@ void SwapChainManager::Resize(int width, int height) {
     rtvDesc.Texture2D.MipSlice = 0;
     hr = m_device->CreateRenderTargetView(backBuffer, &rtvDesc, &m_renderTargetView);
     backBuffer->Release();
-    if (FAILED(hr)) m_renderTargetView = nullptr;
+    if (FAILED(hr)) {
+        logger->error("SwapChainManager::Resize: CreateRenderTargetView failed: 0x{:08X}", (uint32_t)hr);
+        m_renderTargetView = nullptr;
+    }
 }
 
 void SwapChainManager::BeginFrame() {

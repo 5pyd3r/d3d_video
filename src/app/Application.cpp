@@ -271,6 +271,9 @@ std::unique_ptr<IVideoSource> Application::WrapSource(std::unique_ptr<IVideoSour
     auto filter = std::make_unique<GrayscaleFilter>();
     if (filter->Init(m_device)) {
         proc->AddFilter(std::move(filter));
+        logger->info("WrapSource: GrayscaleFilter added");
+    } else {
+        logger->warn("WrapSource: GrayscaleFilter init FAILED — filter unavailable");
     }
     return proc;
 }
@@ -355,19 +358,30 @@ void Application::InitHandlers() {
             if (m_pickingMode) {
                 ReleaseCapture();
                 m_pickingMode = false;
+                logger->info("ESC: capture picking cancelled");
             } else if (m_controller && m_controller->GetSource()) {
+                logger->info("ESC: stopping source");
                 m_controller->StopSource();
                 SetWindowTextW(m.hwnd, L"D3D Video");
             }
         }
         if (m.wParam == 0x43) {
+            logger->info("C key: starting capture picking");
             StartCapturePicking();
             handled = true; return 0;
         }
         if (m.wParam == 0x46) {
             if (m_controller && m_controller->GetSource()) {
                 auto* proc = dynamic_cast<VideoProcSource*>(m_controller->GetSource());
-                if (proc) proc->ToggleFilter();
+                if (proc) {
+                    bool wasOn = proc->IsFilterEnabled();
+                    proc->ToggleFilter();
+                    logger->info("F key: filter toggled {} -> {}", wasOn, proc->IsFilterEnabled());
+                } else {
+                    logger->info("F key: source is not VideoProcSource (no filter)");
+                }
+            } else {
+                logger->info("F key: no source loaded");
             }
             handled = true; return 0;
         }
@@ -584,6 +598,9 @@ bool Application::InitD3D11(HWND window) {
         NULL, NULL, D3D11_SDK_VERSION, &swapChainDesc,
         &m_swapChain, &m_device, &level, &m_deviceCtx);
 
+    if (FAILED(hr)) {
+        logger->error("D3D11CreateDeviceAndSwapChain failed: 0x{:08X}", (uint32_t)hr);
+    }
     return SUCCEEDED(hr);
 }
 

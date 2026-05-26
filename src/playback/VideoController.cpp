@@ -1,4 +1,5 @@
 #include "VideoController.h"
+#include "../platform/Logger.h"
 
 VideoController::VideoController() : m_device(nullptr), m_deviceCtx(nullptr) {}
 
@@ -20,6 +21,9 @@ void VideoController::Init(ID3D11Device* device, ID3D11DeviceContext* deviceCtx,
 void VideoController::SetSource(std::unique_ptr<IVideoSource> source) {
     StopSource();
     if (source && source->Init()) {
+        logger->info("SetSource: '{}' {}x{} @{:.2f}fps",
+            source->GetTitle(), source->GetWidth(), source->GetHeight(),
+            1.0 / source->GetFrameDuration());
         m_source = std::move(source);
         m_videoWidth = m_source->GetWidth();
         m_videoHeight = m_source->GetHeight();
@@ -27,6 +31,8 @@ void VideoController::SetSource(std::unique_ptr<IVideoSource> source) {
         m_frameCount = 0;
         m_startTime = std::chrono::steady_clock::now();
         m_state = PlayState::Play;
+    } else if (source) {
+        logger->error("SetSource: Init failed for '{}'", source->GetTitle());
     }
 }
 
@@ -87,6 +93,7 @@ uint32_t VideoController::Render(HWND hwnd) {
             m_videoHeight = frame.height;
         }
     } else if (result == FrameResult::End) {
+        logger->info("VideoController: end of stream, stopping");
         m_state = PlayState::Stop;
     }
     // NotReady: keep current state, redraw existing frame
