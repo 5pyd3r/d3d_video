@@ -52,6 +52,20 @@ private:
     HWND m_window = nullptr;
     ULONG m_refCount = 1;
     bool m_pickingMode = false;
+
+    // Window snap support
+    struct SnapTarget {
+        bool active = false;
+        int x = 0, y = 0;
+    };
+    HWND m_hwndPreview = nullptr;
+    bool m_moveActive = false;
+    bool m_previewVisible = false;
+
+    SnapTarget ComputeSnapTarget(HWND hwnd, const RECT& windowRect);
+    void CreatePreviewWindow();
+    void UpdatePreviewWindow(int x, int y, int w, int h);
+    void HidePreviewWindow();
 };
 
 #endif
