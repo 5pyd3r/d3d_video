@@ -33,7 +33,8 @@ app_src = files(
 )
 
 detect_src = files(
-    'detect/DetectionSource.cpp',
+    'detect/VideoProcSource.cpp',
+    'detect/GrayscaleFilter.cpp',
     'detect/LogAction.cpp',
 )
 
@@ -88,10 +89,41 @@ cpshader = custom_target(
   build_by_default: true
 )
 
+gsnv12shader = custom_target(
+  'gsnv12shader-compile',
+  input: 'detect/GrayscaleFilter.hlsl',
+  output: 'GrayscaleFilterNV12.h',
+  command: [
+    fxc,
+    '/T', 'ps_5_0',
+    '/E', 'main',
+    '/D', 'NV12_INPUT',
+    '/Vn', 'g_gs_nv12',
+    '/Fh', '@OUTPUT@',
+    '@INPUT@'
+  ],
+  build_by_default: true
+)
+
+gsbgrashader = custom_target(
+  'gsbgrashader-compile',
+  input: 'detect/GrayscaleFilter.hlsl',
+  output: 'GrayscaleFilterBGRA.h',
+  command: [
+    fxc,
+    '/T', 'ps_5_0',
+    '/E', 'main',
+    '/Vn', 'g_gs_bgra',
+    '/Fh', '@OUTPUT@',
+    '@INPUT@'
+  ],
+  build_by_default: true
+)
+
 dbghelp = meson.get_compiler('cpp').find_library('dbghelp', required: true)
 psapi = meson.get_compiler('cpp').find_library('psapi', required: true)
 windowsapp = meson.get_compiler('cpp').find_library('windowsapp', required: true)
 
-executable('d3d_video', [d3d_video_src, platform_src, source_src, decode_src, render_src, playback_src, app_src, detect_src, vshader, pshader, cpshader],
+executable('d3d_video', [d3d_video_src, platform_src, source_src, decode_src, render_src, playback_src, app_src, detect_src, vshader, pshader, cpshader, gsnv12shader, gsbgrashader],
     dependencies: [libavcodec, libavformat, libavutil, spdlog, dbghelp, psapi, windowsapp],
     win_subsystem: 'windows')

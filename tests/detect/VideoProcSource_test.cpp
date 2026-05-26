@@ -5,7 +5,7 @@
 #include "../../src/source/IVideoSource.h"
 #include "../../src/detect/IDetector.h"
 #include "../../src/detect/IAction.h"
-#include "../../src/detect/DetectionSource.h"
+#include "../../src/detect/VideoProcSource.h"
 #include "../../src/detect/NullDetector.h"
 #include "../../src/detect/NoopAction.h"
 
@@ -63,10 +63,10 @@ public:
 
 // --- Transparent passthrough ---
 
-TEST(DetectionSourceTest, Passthrough_ReadFrame_DelegatesToInner) {
+TEST(VideoProcSourceTest, Passthrough_ReadFrame_DelegatesToInner) {
     auto inner = std::make_unique<StubSource>();
     StubSource* raw = inner.get();
-    auto ds = std::make_unique<DetectionSource>(std::move(inner));
+    auto ds = std::make_unique<VideoProcSource>(std::move(inner));
 
     VideoFrame frame;
     FrameResult r = ds->ReadFrame(frame, nullptr, nullptr);
@@ -76,42 +76,42 @@ TEST(DetectionSourceTest, Passthrough_ReadFrame_DelegatesToInner) {
     EXPECT_EQ(frame.height, 1080);
 }
 
-TEST(DetectionSourceTest, Passthrough_GetWidth_DelegatesToInner) {
+TEST(VideoProcSourceTest, Passthrough_GetWidth_DelegatesToInner) {
     auto inner = std::make_unique<StubSource>();
-    auto ds = std::make_unique<DetectionSource>(std::move(inner));
+    auto ds = std::make_unique<VideoProcSource>(std::move(inner));
     EXPECT_EQ(ds->GetWidth(), 1920);
 }
 
-TEST(DetectionSourceTest, Passthrough_GetHeight_DelegatesToInner) {
+TEST(VideoProcSourceTest, Passthrough_GetHeight_DelegatesToInner) {
     auto inner = std::make_unique<StubSource>();
-    auto ds = std::make_unique<DetectionSource>(std::move(inner));
+    auto ds = std::make_unique<VideoProcSource>(std::move(inner));
     EXPECT_EQ(ds->GetHeight(), 1080);
 }
 
-TEST(DetectionSourceTest, Passthrough_GetTitle_DelegatesToInner) {
+TEST(VideoProcSourceTest, Passthrough_GetTitle_DelegatesToInner) {
     auto inner = std::make_unique<StubSource>();
-    auto ds = std::make_unique<DetectionSource>(std::move(inner));
+    auto ds = std::make_unique<VideoProcSource>(std::move(inner));
     EXPECT_STREQ(ds->GetTitle(), "Stub");
 }
 
-TEST(DetectionSourceTest, Passthrough_GetFrameDuration_DelegatesToInner) {
+TEST(VideoProcSourceTest, Passthrough_GetFrameDuration_DelegatesToInner) {
     auto inner = std::make_unique<StubSource>();
-    auto ds = std::make_unique<DetectionSource>(std::move(inner));
+    auto ds = std::make_unique<VideoProcSource>(std::move(inner));
     EXPECT_DOUBLE_EQ(ds->GetFrameDuration(), 1.0 / 30.0);
 }
 
-TEST(DetectionSourceTest, Passthrough_Init_DelegatesToInner) {
+TEST(VideoProcSourceTest, Passthrough_Init_DelegatesToInner) {
     auto inner = std::make_unique<StubSource>();
-    auto ds = std::make_unique<DetectionSource>(std::move(inner));
+    auto ds = std::make_unique<VideoProcSource>(std::move(inner));
     EXPECT_TRUE(ds->Init());
 }
 
 // --- NotReady / End passthrough (no detection run) ---
 
-TEST(DetectionSourceTest, NotReady_Passthrough_NoDetection) {
+TEST(VideoProcSourceTest, NotReady_Passthrough_NoDetection) {
     auto inner = std::make_unique<StubSource>();
     inner->m_result = FrameResult::NotReady;
-    auto ds = std::make_unique<DetectionSource>(std::move(inner));
+    auto ds = std::make_unique<VideoProcSource>(std::move(inner));
 
     auto detector = std::make_unique<AlwaysDetector>();
     AlwaysDetector* dRaw = detector.get();
@@ -123,10 +123,10 @@ TEST(DetectionSourceTest, NotReady_Passthrough_NoDetection) {
     EXPECT_EQ(dRaw->m_detectCount, 0);
 }
 
-TEST(DetectionSourceTest, End_Passthrough_NoDetection) {
+TEST(VideoProcSourceTest, End_Passthrough_NoDetection) {
     auto inner = std::make_unique<StubSource>();
     inner->m_result = FrameResult::End;
-    auto ds = std::make_unique<DetectionSource>(std::move(inner));
+    auto ds = std::make_unique<VideoProcSource>(std::move(inner));
 
     auto detector = std::make_unique<AlwaysDetector>();
     AlwaysDetector* dRaw = detector.get();
@@ -140,9 +140,9 @@ TEST(DetectionSourceTest, End_Passthrough_NoDetection) {
 
 // --- Detection triggers action ---
 
-TEST(DetectionSourceTest, Detection_Triggers_Action) {
+TEST(VideoProcSourceTest, Detection_Triggers_Action) {
     auto inner = std::make_unique<StubSource>();
-    auto ds = std::make_unique<DetectionSource>(std::move(inner));
+    auto ds = std::make_unique<VideoProcSource>(std::move(inner));
 
     auto detector = std::make_unique<AlwaysDetector>();
     ds->AddDetector(std::move(detector));
@@ -162,9 +162,9 @@ TEST(DetectionSourceTest, Detection_Triggers_Action) {
 
 // --- Multiple detectors, all run ---
 
-TEST(DetectionSourceTest, MultipleDetectors_AllRun) {
+TEST(VideoProcSourceTest, MultipleDetectors_AllRun) {
     auto inner = std::make_unique<StubSource>();
-    auto ds = std::make_unique<DetectionSource>(std::move(inner));
+    auto ds = std::make_unique<VideoProcSource>(std::move(inner));
 
     auto d1 = std::make_unique<AlwaysDetector>();
     AlwaysDetector* d1Raw = d1.get();
@@ -183,9 +183,9 @@ TEST(DetectionSourceTest, MultipleDetectors_AllRun) {
 
 // --- Multiple actions, all fire ---
 
-TEST(DetectionSourceTest, MultipleActions_AllFire) {
+TEST(VideoProcSourceTest, MultipleActions_AllFire) {
     auto inner = std::make_unique<StubSource>();
-    auto ds = std::make_unique<DetectionSource>(std::move(inner));
+    auto ds = std::make_unique<VideoProcSource>(std::move(inner));
     ds->AddDetector(std::make_unique<AlwaysDetector>());
 
     auto a1 = std::make_unique<SpyAction>();
@@ -205,10 +205,10 @@ TEST(DetectionSourceTest, MultipleActions_AllFire) {
 
 // --- Empty detector/action list: transparent passthrough ---
 
-TEST(DetectionSourceTest, NoDetectors_ActsAsPassthrough) {
+TEST(VideoProcSourceTest, NoDetectors_ActsAsPassthrough) {
     auto inner = std::make_unique<StubSource>();
     StubSource* raw = inner.get();
-    auto ds = std::make_unique<DetectionSource>(std::move(inner));
+    auto ds = std::make_unique<VideoProcSource>(std::move(inner));
 
     VideoFrame frame;
     FrameResult r = ds->ReadFrame(frame, nullptr, nullptr);
@@ -219,9 +219,9 @@ TEST(DetectionSourceTest, NoDetectors_ActsAsPassthrough) {
 
 // --- Detection not triggered when detector returns false ---
 
-TEST(DetectionSourceTest, NoDetection_ActionNotCalled) {
+TEST(VideoProcSourceTest, NoDetection_ActionNotCalled) {
     auto inner = std::make_unique<StubSource>();
-    auto ds = std::make_unique<DetectionSource>(std::move(inner));
+    auto ds = std::make_unique<VideoProcSource>(std::move(inner));
     ds->AddDetector(std::make_unique<NullDetector>());
 
     auto action = std::make_unique<SpyAction>();
@@ -236,11 +236,22 @@ TEST(DetectionSourceTest, NoDetection_ActionNotCalled) {
 
 // --- GetRenderDescriptor delegates ---
 
-TEST(DetectionSourceTest, GetRenderDescriptor_DelegatesToInner) {
+TEST(VideoProcSourceTest, GetRenderDescriptor_DelegatesToInner) {
     auto inner = std::make_unique<StubSource>();
-    auto ds = std::make_unique<DetectionSource>(std::move(inner));
+    auto ds = std::make_unique<VideoProcSource>(std::move(inner));
     RenderDescriptor rd = ds->GetRenderDescriptor(nullptr);
     EXPECT_EQ(rd.pixelShader, nullptr);
     EXPECT_EQ(rd.srvs[0], nullptr);
     EXPECT_EQ(rd.srvs[1], nullptr);
+}
+
+// --- ToggleFilter ---
+
+TEST(VideoProcSourceTest, ToggleFilter_CyclesThroughFilters) {
+    auto inner = std::make_unique<StubSource>();
+    auto ds = std::make_unique<VideoProcSource>(std::move(inner));
+    // No filters added: ToggleFilter should not crash
+    EXPECT_FALSE(ds->IsFilterEnabled());
+    ds->ToggleFilter();
+    EXPECT_FALSE(ds->IsFilterEnabled());
 }
