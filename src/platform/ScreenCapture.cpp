@@ -47,7 +47,7 @@ ScreenCapture::~ScreenCapture() {
 }
 
 bool ScreenCapture::StartCapture(HWND targetWindow, ID3D11Device* device) {
-    logger->info("ScreenCapture::StartCapture begin");
+    logger->info("ScreenCapture: starting capture for HWND=0x{:X}", (uint64_t)targetWindow);
     StopCapture();
 
     try {
@@ -61,13 +61,11 @@ bool ScreenCapture::StartCapture(HWND targetWindow, ID3D11Device* device) {
                                      __uuidof(ABI::Windows::Graphics::Capture::IGraphicsCaptureItem),
                                      winrt::put_abi(item)));
         m_impl->item = item;
-        logger->info("ScreenCapture: captured item obtained for HWND=0x{:X}", (uint64_t)targetWindow);
 
         // 2. Get capture size
         auto size = item.Size();
         m_width = size.Width;
         m_height = size.Height;
-        logger->info("ScreenCapture: capture size = {}x{}", m_width, m_height);
         if (m_width <= 0 || m_height <= 0) {
             logger->error("ScreenCapture: invalid capture size: {}x{}", m_width, m_height);
             m_impl->item = nullptr;
@@ -83,7 +81,6 @@ bool ScreenCapture::StartCapture(HWND targetWindow, ID3D11Device* device) {
         winrt::com_ptr<::IInspectable> d3dInspectable;
         winrt::check_hresult(
             CreateDirect3D11DeviceFromDXGIDevice(dxgiDevice.Get(), d3dInspectable.put()));
-        logger->info("ScreenCapture: device converted to WinRT IDirect3DDevice");
 
         auto d3dDevice = d3dInspectable.as<IDirect3DDevice>();
 
@@ -94,17 +91,16 @@ bool ScreenCapture::StartCapture(HWND targetWindow, ID3D11Device* device) {
             2,
             size);
         m_impl->framePool = framePool;
-        logger->info("ScreenCapture: frame pool created with 2 buffers");
 
         // 5. Create session, disable cursor capture, start
         auto session = framePool.CreateCaptureSession(item);
         session.IsCursorCaptureEnabled(false);
         m_impl->session = session;
-        logger->info("ScreenCapture: capture session created (cursor disabled)");
 
         session.StartCapture();
 
         m_isCapturing = true;
+        logger->info("ScreenCapture: session started {}x{}", m_width, m_height);
         return true;
 
     } catch (winrt::hresult_error const& e) {

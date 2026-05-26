@@ -14,11 +14,13 @@ bool PlaylistSource::Init() {
 }
 
 bool PlaylistSource::OpenCurrent() {
+    logger->info("PlaylistSource: opening [{}/{}] {}", m_index + 1, m_files.size(), m_files[m_index].c_str());
     m_currentSource = std::make_unique<FileSource>(m_files[m_index].c_str(), m_device);
     if (m_currentSource->Init()) {
         m_currentTitle = m_currentSource->GetTitle();
         return true;
     }
+    logger->warn("PlaylistSource: failed to open '{}', skipping", m_files[m_index].c_str());
     m_currentSource.reset();
     return false;
 }

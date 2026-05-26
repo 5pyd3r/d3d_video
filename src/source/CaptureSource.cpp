@@ -8,10 +8,14 @@ CaptureSource::CaptureSource(HWND targetWindow, ID3D11Device* device)
 CaptureSource::~CaptureSource() { Close(); }
 
 bool CaptureSource::Init() {
-    if (!m_capture.StartCapture(m_targetWindow, m_device)) return false;
+    if (!m_capture.StartCapture(m_targetWindow, m_device)) {
+        logger->error("CaptureSource::Init: StartCapture failed for HWND=0x{:X}", (uint64_t)m_targetWindow);
+        return false;
+    }
 
     m_width = m_capture.GetWidth();
     m_height = m_capture.GetHeight();
+    logger->info("CaptureSource: capturing '{}' {}x{}", m_title.c_str(), m_width, m_height);
 
     wchar_t wtitle[256] = {};
     GetWindowTextW(m_targetWindow, wtitle, 256);

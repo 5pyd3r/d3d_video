@@ -1,5 +1,6 @@
 #include "TextureUpdater.h"
 #include "../render/VideoQuad.h"
+#include "../platform/Logger.h"
 
 extern "C" {
 #include <libavutil/frame.h>
@@ -25,7 +26,12 @@ void TextureUpdater::Update(ID3D11DeviceContext* deviceCtx,
     deviceCtx->GetDevice(&dev);
 
     ID3D11Texture2D* videoTextureShared = nullptr;
-    dev->OpenSharedResource(sharedHandle, __uuidof(ID3D11Texture2D), (void**)&videoTextureShared);
+    HRESULT hr = dev->OpenSharedResource(sharedHandle, __uuidof(ID3D11Texture2D), (void**)&videoTextureShared);
+    if (FAILED(hr)) {
+        logger->error("TextureUpdater: OpenSharedResource failed: 0x{:08X}", (uint32_t)hr);
+        dev->Release();
+        return;
+    }
     deviceCtx->CopySubresourceRegion(videoTextureShared, 0, 0, 0, 0, t_frame, t_index, 0);
     deviceCtx->Flush();
 
