@@ -51,6 +51,7 @@ private:
     ID3D11DeviceContext* m_deviceCtx = nullptr;
     std::unique_ptr<VideoController> m_controller;
     HWND m_window = nullptr;
+    HPOWERNOTIFY m_powerNotify = nullptr;
     ULONG m_refCount = 1;
     bool m_pickingMode = false;
 
