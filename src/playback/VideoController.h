@@ -4,7 +4,9 @@
 #include <cstdint>
 #include <chrono>
 #include <memory>
+#include <string>
 #include <d3d11.h>
+#include <windows.h>
 #include "../source/IVideoSource.h"
 #include "../render/VideoQuad.h"
 #include "../render/SwapChainManager.h"
@@ -21,7 +23,11 @@ public:
 
     void SetSource(std::unique_ptr<IVideoSource> source);
     void StopSource();
+    void Pause();
+    void Resume();
     uint32_t Render(HWND hwnd);
+    void OnSystemSuspend();
+    void OnSystemResume();
     void ResizeSwapChain(int width, int height);
     PlayState GetState() const { return m_state; }
 
@@ -47,6 +53,12 @@ private:
     int m_frameCount = 0;
     double m_frameDuration = 1.0 / 30.0;
     std::chrono::steady_clock::time_point m_startTime;
+    std::chrono::steady_clock::time_point m_pausedTime;
+    bool m_powerOverrideActive = false;
+    std::string m_lastSourceTitle;
+
+    void UpdatePowerOverride(bool playing);
+    void UpdateWindowTitle(HWND hwnd);
 
     PlayState m_state = PlayState::Stop;
 };

@@ -409,11 +409,21 @@ void Application::InitHandlers() {
         handled = true; return 0;
     };
 
+    m_handlers[WM_POWERBROADCAST] = [this](MSG& m, bool& handled) -> LRESULT {
+        if (m.wParam == PBT_APMSUSPEND && m_controller) {
+            m_controller->OnSystemSuspend();
+        } else if (m.wParam == PBT_APMRESUMEAUTOMATIC && m_controller) {
+            m_controller->OnSystemResume();
+        }
+        handled = true; return TRUE;
+    };
+
     m_handlers[WM_KEYUP] = [](MSG&, bool& handled) -> LRESULT {
         handled = true; return 0;
     };
 
     m_handlers[WM_ENTERSIZEMOVE] = [this](MSG& m, bool& handled) -> LRESULT {
+        if (m_controller) m_controller->Pause();
         if (g_isFullscreen || !(GetKeyState(VK_MENU) & 0x8000)) return 0;
         return 0;
     };
@@ -434,6 +444,7 @@ void Application::InitHandlers() {
     };
 
     m_handlers[WM_EXITSIZEMOVE] = [this](MSG& m, bool& handled) -> LRESULT {
+        if (m_controller) m_controller->Resume();
         if (g_isFullscreen || !m_moveActive) return 0;
         m_moveActive = false;
 
@@ -548,9 +559,15 @@ int Application::Run(HINSTANCE hInstance) {
 
     InitHandlers();
 
+    m_powerNotify = RegisterSuspendResumeNotification(m_window, DEVICE_NOTIFY_WINDOW_HANDLE);
+
     MessageLoop loop;
     int exitCode = loop.Run(m_window, static_cast<MessageLoop::ICallback*>(this));
 
+    if (m_powerNotify) {
+        UnregisterSuspendResumeNotification(m_powerNotify);
+        m_powerNotify = nullptr;
+    }
     RevokeDragDrop(m_window);
     RoUninitialize();
     OleUninitialize();

@@ -30,7 +30,9 @@ void VideoController::SetSource(std::unique_ptr<IVideoSource> source) {
         m_frameDuration = m_source->GetFrameDuration();
         m_frameCount = 0;
         m_startTime = std::chrono::steady_clock::now();
+        m_lastSourceTitle = m_source->GetTitle();
         m_state = PlayState::Play;
+        UpdatePowerOverride(true);
     } else if (source) {
         logger->error("SetSource: Init failed for '{}'", source->GetTitle());
     }
@@ -41,13 +43,34 @@ void VideoController::StopSource() {
         m_source->Close();
         m_source.reset();
     }
+    UpdatePowerOverride(false);
     m_state = PlayState::Stop;
+}
+
+void VideoController::Pause() {
+    if (m_state != PlayState::Play) return;
+    m_pausedTime = std::chrono::steady_clock::now();
+    m_state = PlayState::Pause;
+}
+
+void VideoController::Resume() {
+    if (m_state != PlayState::Pause) return;
+    m_startTime += std::chrono::steady_clock::now() - m_pausedTime;
+    m_state = PlayState::Play;
 }
 
 void VideoController::ResizeSwapChain(int width, int height) {
     m_viewWidth = width;
     m_viewHeight = height;
     m_swapChainMgr.Resize(width, height);
+}
+
+void VideoController::OnSystemSuspend() {
+    Pause();
+}
+
+void VideoController::OnSystemResume() {
+    Resume();
 }
 
 void VideoController::Draw(HWND hwnd) {
@@ -92,11 +115,40 @@ uint32_t VideoController::Render(HWND hwnd) {
             m_videoWidth = frame.width;
             m_videoHeight = frame.height;
         }
+        UpdateWindowTitle(hwnd);
     } else if (result == FrameResult::End) {
         logger->info("VideoController: end of stream, stopping");
         m_state = PlayState::Stop;
+        UpdatePowerOverride(false);
+        UpdateWindowTitle(hwnd);
     }
     // NotReady: keep current state, redraw existing frame
     Draw(hwnd);
     return 0;
+}
+
+void VideoController::UpdatePowerOverride(bool playing) {
+    if (playing && !m_powerOverrideActive) {
+        SetThreadExecutionState(ES_DISPLAY_REQUIRED | ES_SYSTEM_REQUIRED | ES_CONTINUOUS);
+        m_powerOverrideActive = true;
+        logger->info("VideoController: display/sleep override engaged");
+    } else if (!playing && m_powerOverrideActive) {
+        SetThreadExecutionState(ES_CONTINUOUS);
+        m_powerOverrideActive = false;
+        logger->info("VideoController: display/sleep override released");
+    }
+}
+
+void VideoController::UpdateWindowTitle(HWND hwnd) {
+    if (!m_source) return;
+    const char* title = m_source->GetTitle();
+    if (title && m_lastSourceTitle != title) {
+        int len = MultiByteToWideChar(CP_UTF8, 0, title, -1, nullptr, 0);
+        if (len > 0) {
+            std::wstring wtitle(len, L'\0');
+            MultiByteToWideChar(CP_UTF8, 0, title, -1, &wtitle[0], len);
+            SetWindowTextW(hwnd, wtitle.c_str());
+        }
+        m_lastSourceTitle = title;
+    }
 }
