@@ -1,5 +1,6 @@
 #include "StringUtils.h"
 #include <algorithm>
+#include <cctype>
 #include <filesystem>
 
 std::string w2s(const std::wstring& wstr) {
@@ -60,7 +61,10 @@ bool IsVideoFile(const std::string& path) {
     if (dot == std::string::npos) return false;
 
     std::string ext = path.substr(dot);
-    std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
+    // ::tolower takes an int whose value must be representable as unsigned char:
+    // a UTF-8 byte >= 0x80 is negative in a plain char and is undefined behaviour.
+    std::transform(ext.begin(), ext.end(), ext.begin(),
+                   [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
 
     for (const auto& known : kExtensions) {
         if (ext == known) return true;
@@ -69,7 +73,10 @@ bool IsVideoFile(const std::string& path) {
 }
 
 std::wstring TruncateFileNameForTitle(const std::string& filePath, size_t maxLen) {
-    std::filesystem::path p = std::filesystem::u8path(filePath);
+    // std::filesystem::u8path is deprecated in C++20: build the path from a
+    // char8_t string instead.
+    std::filesystem::path p(std::u8string(
+        reinterpret_cast<const char8_t*>(filePath.data()), filePath.size()));
     std::wstring fileName = p.filename().wstring();
 
     if (fileName.length() <= maxLen) return fileName;
