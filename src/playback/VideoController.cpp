@@ -91,6 +91,11 @@ void VideoController::Draw(HWND hwnd) {
 }
 
 uint32_t VideoController::Render(HWND hwnd) {
+    // Collapsed (Alt+Esc) or minimized: draw nothing. SetHidden() re-anchors the
+    // frame clock on show, so the timeline continues where it stopped instead of
+    // fast-forwarding through every frame missed while hidden.
+    if (m_hidden) return 0;
+
     if (m_state == PlayState::Stop || !m_source) {
         Draw(hwnd);
         return 0;
@@ -127,12 +132,30 @@ uint32_t VideoController::Render(HWND hwnd) {
     return 0;
 }
 
+void VideoController::SetHidden(bool hidden) {
+    if (m_hidden == hidden) return;
+    m_hidden = hidden;
+
+    if (!hidden && m_state == PlayState::Play) {
+        // Re-anchor the frame clock to the last presented frame so resuming does
+        // not replay the frames that were skipped while hidden.
+        m_startTime = std::chrono::steady_clock::now() -
+            std::chrono::duration_cast<std::chrono::steady_clock::duration>(
+                std::chrono::duration<double>(m_frameDuration * m_frameCount));
+    }
+
+    UpdatePowerOverride(m_state == PlayState::Play);
+    logger->info("VideoController: hidden={} at frame {}", m_hidden, m_frameCount);
+}
+
 void VideoController::UpdatePowerOverride(bool playing) {
-    if (playing && !m_powerOverrideActive) {
+    // A collapsed player must not keep the display awake.
+    const bool wanted = playing && !m_hidden;
+    if (wanted && !m_powerOverrideActive) {
         SetThreadExecutionState(ES_DISPLAY_REQUIRED | ES_SYSTEM_REQUIRED | ES_CONTINUOUS);
         m_powerOverrideActive = true;
         logger->info("VideoController: display/sleep override engaged");
-    } else if (!playing && m_powerOverrideActive) {
+    } else if (!wanted && m_powerOverrideActive) {
         SetThreadExecutionState(ES_CONTINUOUS);
         m_powerOverrideActive = false;
         logger->info("VideoController: display/sleep override released");

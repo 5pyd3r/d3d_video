@@ -9,6 +9,7 @@
 #include <memory>
 #include <functional>
 #include <unordered_map>
+#include <chrono>
 
 #include "../playback/VideoController.h"
 #include "../platform/MessageLoop.h"
@@ -46,6 +47,16 @@ private:
     void StartCapturePicking();
     std::unique_ptr<IVideoSource> WrapSource(std::unique_ptr<IVideoSource> inner);
 
+    // Alt+Esc "corner quake": summon the player to the top-left corner of the
+    // monitor under the cursor, or collapse it (park off screen) again.
+    void ToggleCornerQuake();
+    void ShowInCorner();
+    void HideFromCorner();
+    void ParkOffscreen();
+    void UnparkFromOffscreen();
+    bool MoveToCursorMonitorCorner();
+    void SyncHiddenStateWithWindow();
+
     IDXGISwapChain* m_swapChain = nullptr;
     ID3D11Device* m_device = nullptr;
     ID3D11DeviceContext* m_deviceCtx = nullptr;
@@ -54,6 +65,11 @@ private:
     HPOWERNOTIFY m_powerNotify = nullptr;
     ULONG m_refCount = 1;
     bool m_pickingMode = false;
+    bool m_hidden = false;
+    bool m_collapsedParked = false;
+    bool m_hotkeyRegistered = false;
+    bool m_hotkeyReleased = true;
+    std::chrono::steady_clock::time_point m_lastToggle = {};
 
     // Window snap support
     struct SnapTarget {
