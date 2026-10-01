@@ -23,6 +23,11 @@ public:
                       int& outWidth, int& outHeight);
 
 private:
+    // Body of ProcessFrame(). WinRT reports failures as exceptions, so the public
+    // entry point translates them instead of letting them escape the frame loop.
+    bool ProcessFrameImpl(ID3D11DeviceContext* ctx, nv::VideoQuad* vq,
+                          int& outWidth, int& outHeight);
+
     struct Impl;
     std::unique_ptr<Impl> m_impl;
 

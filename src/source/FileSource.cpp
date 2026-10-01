@@ -67,6 +67,16 @@ FrameResult FileSource::ReadFrame(VideoFrame& out, ID3D11DeviceContext* ctx, nv:
 
     if (!m_frame || !m_frame->data[0]) return FrameResult::End;
 
+    // The render path copies data[0] straight into a D3D11 texture. When the
+    // decoder could not keep frames on the GPU it hands back a software frame,
+    // whose data[0] is a CPU buffer: stop instead of casting it to a texture.
+    if (!TextureUpdater::IsD3D11Frame(m_frame)) {
+        logger->error("FileSource: '{}' produced a non-D3D11 frame (format={}); "
+                      "hardware decode unavailable for this stream, stopping",
+                      m_title, static_cast<int>(m_frame->format));
+        return FrameResult::End;
+    }
+
     // Copy decoded NV12 hardware frame into VideoQuad's shared texture
     HANDLE sharedHandle = vq->GetsharedHandle();
     TextureUpdater::Update(ctx, sharedHandle, m_frame, m_width, m_height, vq);

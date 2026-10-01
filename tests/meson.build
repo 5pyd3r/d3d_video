@@ -66,3 +66,13 @@ test('VideoControllerPauseReasons',
         vshader, pshader, cpshader,
         include_directories: include_directories('../src'),
         dependencies: [gtest_dep, libavcodec, libavformat, libavutil, spdlog]))
+
+test('TextureUpdater',
+    executable('test_texture_updater',
+        'playback/TextureUpdater_test.cpp',
+        '../src/playback/TextureUpdater.cpp',
+        '../src/render/VideoQuad.cpp',
+        '../src/platform/Logger.cpp',
+        vshader, pshader, cpshader,
+        include_directories: include_directories('../src'),
+        dependencies: [gtest_dep, libavcodec, libavformat, libavutil, spdlog]))

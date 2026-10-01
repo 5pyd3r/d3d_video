@@ -30,10 +30,17 @@ VideoQuad::VideoQuad(
 	HRESULT hr = _device->CreateTexture2D(&tdesc, nullptr, &videoTexture);
 	if (FAILED(hr)) { logger->error("VideoQuad: CreateTexture2D failed: 0x{:08X}", (uint32_t)hr); return; }
 
-	IDXGIResource *dxgiShareTexture;
-	videoTexture->QueryInterface(__uuidof(IDXGIResource), (void **)&dxgiShareTexture);
-	dxgiShareTexture->GetSharedHandle(&sharedHandle);
-	dxgiShareTexture->Release();
+	IDXGIResource *dxgiShareTexture = nullptr;
+	if (SUCCEEDED(videoTexture->QueryInterface(__uuidof(IDXGIResource), (void **)&dxgiShareTexture)) &&
+	    dxgiShareTexture != nullptr) {
+		if (FAILED(dxgiShareTexture->GetSharedHandle(&sharedHandle))) {
+			sharedHandle = nullptr;
+			logger->error("VideoQuad: GetSharedHandle failed, no shared texture");
+		}
+		dxgiShareTexture->Release();
+	} else {
+		logger->error("VideoQuad: IDXGIResource query failed, no shared texture");
+	}
 
 	D3D11_SHADER_RESOURCE_VIEW_DESC luminancePlaneDesc = {};
 	luminancePlaneDesc.Format = DXGI_FORMAT_R8_UNORM;
@@ -131,9 +138,13 @@ VideoQuad::~VideoQuad()
 
 void VideoQuad::Resize(int videoHeight, int videoWidth)
 {
-	if (videoTexture) { videoTexture->Release(); videoTexture = nullptr; }
-	if (m_luminanceView) { m_luminanceView->Release(); m_luminanceView = nullptr; }
-	if (m_chrominanceView) { m_chrominanceView->Release(); m_chrominanceView = nullptr; }
+	// Fail closed: the previous order released the live texture before the new one
+	// existed, so a failed creation left videoTexture null and the shared-handle
+	// query below dereferenced that null pointer. Build first, publish on success.
+	ID3D11Texture2D* newTexture = nullptr;
+	ID3D11ShaderResourceView* newLuminanceView = nullptr;
+	ID3D11ShaderResourceView* newChrominanceView = nullptr;
+	HANDLE newSharedHandle = nullptr;
 
 	D3D11_TEXTURE2D_DESC tdesc = {};
 	tdesc.Format = DXGI_FORMAT_NV12;
@@ -145,34 +156,56 @@ void VideoQuad::Resize(int videoHeight, int videoWidth)
 	tdesc.Height = videoHeight;
 	tdesc.Width = videoWidth;
 	tdesc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
-	_device->CreateTexture2D(&tdesc, nullptr, &videoTexture);
 
-	IDXGIResource *dxgiShareTexture;
-	videoTexture->QueryInterface(__uuidof(IDXGIResource), (void **)&dxgiShareTexture);
-	dxgiShareTexture->GetSharedHandle(&sharedHandle);
-	dxgiShareTexture->Release();
+	bool ok = SUCCEEDED(_device->CreateTexture2D(&tdesc, nullptr, &newTexture)) && newTexture != nullptr;
+	if (ok) {
+		IDXGIResource* dxgiShareTexture = nullptr;
+		ok = SUCCEEDED(newTexture->QueryInterface(__uuidof(IDXGIResource), (void**)&dxgiShareTexture)) &&
+		     dxgiShareTexture != nullptr &&
+		     SUCCEEDED(dxgiShareTexture->GetSharedHandle(&newSharedHandle)) &&
+		     newSharedHandle != nullptr;
+		if (dxgiShareTexture) dxgiShareTexture->Release();
+	}
 
-	D3D11_SHADER_RESOURCE_VIEW_DESC luminancePlaneDesc = {};
-	luminancePlaneDesc.Format = DXGI_FORMAT_R8_UNORM;
-	luminancePlaneDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
-	luminancePlaneDesc.Texture2D.MostDetailedMip = 0;
-	luminancePlaneDesc.Texture2D.MipLevels = 1;
+	if (ok) {
+		D3D11_SHADER_RESOURCE_VIEW_DESC luminancePlaneDesc = {};
+		luminancePlaneDesc.Format = DXGI_FORMAT_R8_UNORM;
+		luminancePlaneDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
+		luminancePlaneDesc.Texture2D.MostDetailedMip = 0;
+		luminancePlaneDesc.Texture2D.MipLevels = 1;
+		ok = SUCCEEDED(_device->CreateShaderResourceView(newTexture, &luminancePlaneDesc, &newLuminanceView));
+	}
 
-	_device->CreateShaderResourceView(
-		videoTexture,
-		&luminancePlaneDesc,
-		&m_luminanceView);
+	if (ok) {
+		D3D11_SHADER_RESOURCE_VIEW_DESC chrominancePlaneDesc = {};
+		chrominancePlaneDesc.Format = DXGI_FORMAT_R8G8_UNORM;
+		chrominancePlaneDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
+		chrominancePlaneDesc.Texture2D.MostDetailedMip = 0;
+		chrominancePlaneDesc.Texture2D.MipLevels = 1;
+		ok = SUCCEEDED(_device->CreateShaderResourceView(newTexture, &chrominancePlaneDesc, &newChrominanceView));
+	}
 
-	D3D11_SHADER_RESOURCE_VIEW_DESC chrominancePlaneDesc = {};
-	chrominancePlaneDesc.Format = DXGI_FORMAT_R8G8_UNORM;
-	chrominancePlaneDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
-	chrominancePlaneDesc.Texture2D.MostDetailedMip = 0;
-	chrominancePlaneDesc.Texture2D.MipLevels = 1;
+	if (!ok) {
+		logger->error("VideoQuad::Resize: could not build {}x{} NV12 resources; video texture dropped",
+		              videoWidth, videoHeight);
+		if (newLuminanceView) newLuminanceView->Release();
+		if (newChrominanceView) newChrominanceView->Release();
+		if (newTexture) newTexture->Release();
+		if (videoTexture) { videoTexture->Release(); videoTexture = nullptr; }
+		if (m_luminanceView) { m_luminanceView->Release(); m_luminanceView = nullptr; }
+		if (m_chrominanceView) { m_chrominanceView->Release(); m_chrominanceView = nullptr; }
+		sharedHandle = nullptr;
+		return;
+	}
 
-	_device->CreateShaderResourceView(
-		videoTexture,
-		&chrominancePlaneDesc,
-		&m_chrominanceView);
+	if (videoTexture) videoTexture->Release();
+	if (m_luminanceView) m_luminanceView->Release();
+	if (m_chrominanceView) m_chrominanceView->Release();
+
+	videoTexture = newTexture;
+	m_luminanceView = newLuminanceView;
+	m_chrominanceView = newChrominanceView;
+	sharedHandle = newSharedHandle;
 }
 
 void nv::VideoQuad::MulTransformMatrix(const DirectX::XMMATRIX& matrix)
@@ -210,12 +243,22 @@ void VideoQuad::Draw() {
 
 void VideoQuad::InitCapture(int videoWidth, int videoHeight) {
 	ResizeCapture(videoWidth, videoHeight);
-	_device->CreatePixelShader(g_cps, sizeof(g_cps), nullptr, &capturePixelShader);
+	// Picking a target again creates a new shader: release the previous one, or
+	// every capture session leaks a pixel shader. Clearing it on failure keeps a
+	// stale shader from being reported as usable.
+	if (capturePixelShader) { capturePixelShader->Release(); capturePixelShader = nullptr; }
+	HRESULT hr = _device->CreatePixelShader(g_cps, sizeof(g_cps), nullptr, &capturePixelShader);
+	if (FAILED(hr)) {
+		capturePixelShader = nullptr;
+		logger->error("VideoQuad::InitCapture: CreatePixelShader failed: 0x{:08X}", (uint32_t)hr);
+	}
 }
 
 void VideoQuad::ResizeCapture(int videoWidth, int videoHeight) {
-	if (captureSRV) { captureSRV->Release(); captureSRV = nullptr; }
-	if (captureTexture) { captureTexture->Release(); captureTexture = nullptr; }
+	// Same fail-closed shape as Resize(): a capture texture that cannot be built
+	// must not leave a half-created SRV behind.
+	ID3D11Texture2D* newTexture = nullptr;
+	ID3D11ShaderResourceView* newView = nullptr;
 
 	D3D11_TEXTURE2D_DESC desc = {};
 	desc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
@@ -226,13 +269,28 @@ void VideoQuad::ResizeCapture(int videoWidth, int videoHeight) {
 	desc.ArraySize = 1;
 	desc.SampleDesc.Count = 1;
 	desc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
-	_device->CreateTexture2D(&desc, nullptr, &captureTexture);
 
-	D3D11_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
-	srvDesc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
-	srvDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
-	srvDesc.Texture2D.MipLevels = 1;
-	_device->CreateShaderResourceView(captureTexture, &srvDesc, &captureSRV);
+	bool ok = SUCCEEDED(_device->CreateTexture2D(&desc, nullptr, &newTexture)) && newTexture != nullptr;
+	if (ok) {
+		D3D11_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
+		srvDesc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
+		srvDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
+		srvDesc.Texture2D.MipLevels = 1;
+		ok = SUCCEEDED(_device->CreateShaderResourceView(newTexture, &srvDesc, &newView));
+	}
+
+	if (captureSRV) { captureSRV->Release(); captureSRV = nullptr; }
+	if (captureTexture) { captureTexture->Release(); captureTexture = nullptr; }
+
+	if (!ok) {
+		logger->error("VideoQuad::ResizeCapture: could not build {}x{} capture resources", videoWidth, videoHeight);
+		if (newView) newView->Release();
+		if (newTexture) newTexture->Release();
+		return;
+	}
+
+	captureTexture = newTexture;
+	captureSRV = newView;
 }
 
 void VideoQuad::Draw(const RenderDescriptor& rp) {
