@@ -109,6 +109,11 @@ VideoQuad::VideoQuad(
 
 	D3D11_SAMPLER_DESC samplerDesc = {};
 	samplerDesc.Filter = D3D11_FILTER::D3D11_FILTER_ANISOTROPIC;
+	// ANISOTROPIC needs a non-zero MaxAnisotropy and ComparisonFunc must hold a
+	// real comparison value; the zero-initialised defaults are out of range and
+	// the D3D11 debug layer flags both.
+	samplerDesc.MaxAnisotropy = 1;
+	samplerDesc.ComparisonFunc = D3D11_COMPARISON_NEVER;
 	samplerDesc.AddressU = D3D11_TEXTURE_ADDRESS_WRAP;
 	samplerDesc.AddressV = D3D11_TEXTURE_ADDRESS_WRAP;
 	samplerDesc.AddressW = D3D11_TEXTURE_ADDRESS_WRAP;
@@ -121,6 +126,7 @@ VideoQuad::VideoQuad(
 
 VideoQuad::~VideoQuad()
 {
+	if (copyTarget) { copyTarget->Release(); copyTarget = nullptr; }
 	if (m_luminanceView) { m_luminanceView->Release(); m_luminanceView = nullptr; }
 	if (m_chrominanceView) { m_chrominanceView->Release(); m_chrominanceView = nullptr; }
 	if (videoTexture) { videoTexture->Release(); videoTexture = nullptr; }
@@ -136,7 +142,7 @@ VideoQuad::~VideoQuad()
 	if (pSampler) { pSampler->Release(); pSampler = nullptr; }
 }
 
-void VideoQuad::Resize(int videoHeight, int videoWidth)
+void VideoQuad::Resize(int videoWidth, int videoHeight)
 {
 	// Fail closed: the previous order released the live texture before the new one
 	// existed, so a failed creation left videoTexture null and the shared-handle
@@ -153,8 +159,8 @@ void VideoQuad::Resize(int videoHeight, int videoWidth)
 	tdesc.ArraySize = 1;
 	tdesc.MipLevels = 1;
 	tdesc.SampleDesc.Count = 1;
-	tdesc.Height = videoHeight;
 	tdesc.Width = videoWidth;
+	tdesc.Height = videoHeight;
 	tdesc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
 
 	bool ok = SUCCEEDED(_device->CreateTexture2D(&tdesc, nullptr, &newTexture)) && newTexture != nullptr;
@@ -235,6 +241,24 @@ HANDLE nv::VideoQuad::GetsharedHandle()
 	return sharedHandle;
 }
 
+ID3D11Texture2D* VideoQuad::GetSharedTextureForCopy(HANDLE handle)
+{
+	if (copyTarget != nullptr && copyTargetHandle == handle) return copyTarget;
+
+	if (copyTarget) { copyTarget->Release(); copyTarget = nullptr; }
+	copyTargetHandle = nullptr;
+	if (!handle || !_device) return nullptr;
+
+	HRESULT hr = _device->OpenSharedResource(handle, __uuidof(ID3D11Texture2D), (void**)&copyTarget);
+	if (FAILED(hr)) {
+		copyTarget = nullptr;
+		logger->error("VideoQuad: OpenSharedResource failed: 0x{:08X}", (uint32_t)hr);
+		return nullptr;
+	}
+	copyTargetHandle = handle;
+	return copyTarget;
+}
+
 void VideoQuad::Draw() {
 	Draw(RenderDescriptor{ pPixelShader, { m_luminanceView, m_chrominanceView } });
 }
@@ -294,8 +318,14 @@ void VideoQuad::ResizeCapture(int videoWidth, int videoHeight) {
 }
 
 void VideoQuad::Draw(const RenderDescriptor& rp) {
-	D3D11_MAPPED_SUBRESOURCE map;
-	_deviceCtx->Map(pConstantBuffer, 0, D3D11_MAP::D3D11_MAP_WRITE_DISCARD, 0, &map);
+	D3D11_MAPPED_SUBRESOURCE map = {};
+	HRESULT hr = _deviceCtx->Map(pConstantBuffer, 0, D3D11_MAP::D3D11_MAP_WRITE_DISCARD, 0, &map);
+	if (FAILED(hr)) {
+		// Skipping the draw keeps the cleared back buffer from BeginFrame() on
+		// screen instead of copying the matrix through a null pointer.
+		logger->error("VideoQuad::Draw: Map(constant buffer) failed: 0x{:08X}", (uint32_t)hr);
+		return;
+	}
 
 	auto m = dx::XMMatrixTranspose(transformMatrix);
 	memcpy(map.pData, &m, sizeof(m));

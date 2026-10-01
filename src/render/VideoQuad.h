@@ -27,18 +27,24 @@ namespace nv {
 
 	class VideoQuad {
 	public:
+		// The constructor and Resize() both take (width, height): the declaration
+		// used to name them in the opposite order, which silently transposes the
+		// texture size for any caller that trusts the header.
 		VideoQuad(
 			ID3D11Device* device,
 			ID3D11DeviceContext* deviceCtx,
-			int videoHeight,
-			int videoWidth);
+			int videoWidth,
+			int videoHeight);
 		~VideoQuad();
-		void Resize(int videoHeight, int videoWidth);
+		void Resize(int videoWidth, int videoHeight);
 		void MulTransformMatrix(const DirectX::XMMATRIX& matrix);
 		void UpdateByRatio(double srcRatio, double dstRatio);
 		void BeginDraw();
 		HANDLE GetsharedHandle();
 		ID3D11Texture2D* GetVideoTexture() const { return videoTexture; }
+		// The texture the decoder copies into, opened from the shared handle once
+		// and cached: re-opening it per frame cost a COM round trip every frame.
+		ID3D11Texture2D* GetSharedTextureForCopy(HANDLE handle);
 		void Draw();
 		void InitCapture(int videoWidth, int videoHeight);
 		void ResizeCapture(int videoWidth, int videoHeight);
@@ -56,6 +62,8 @@ namespace nv {
 		ID3D11DeviceContext* _deviceCtx;
 		ID3D11Texture2D *videoTexture = nullptr;
 		HANDLE sharedHandle = nullptr;
+		ID3D11Texture2D *copyTarget = nullptr;
+		HANDLE copyTargetHandle = nullptr;
 		ID3D11ShaderResourceView *m_luminanceView;
 		ID3D11ShaderResourceView *m_chrominanceView;
 		ID3D11Buffer *pVertexBuffer;

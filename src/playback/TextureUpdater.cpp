@@ -30,7 +30,7 @@ void TextureUpdater::Update(ID3D11DeviceContext* deviceCtx,
     if (frame->width != inOutWidth || frame->height != inOutHeight) {
         inOutWidth = frame->width;
         inOutHeight = frame->height;
-        vq->Resize(inOutHeight, inOutWidth);
+        vq->Resize(inOutWidth, inOutHeight);
         sharedHandle = vq->GetsharedHandle();
     }
 
@@ -42,19 +42,16 @@ void TextureUpdater::Update(ID3D11DeviceContext* deviceCtx,
         return;
     }
 
-    ID3D11Device* dev = nullptr;
-    deviceCtx->GetDevice(&dev);
-
-    ID3D11Texture2D* videoTextureShared = nullptr;
-    HRESULT hr = dev->OpenSharedResource(sharedHandle, __uuidof(ID3D11Texture2D), (void**)&videoTextureShared);
-    if (FAILED(hr)) {
-        logger->error("TextureUpdater: OpenSharedResource failed: 0x{:08X}", (uint32_t)hr);
-        dev->Release();
+    // VideoQuad opens the shared handle once and caches it; doing it here meant a
+    // GetDevice + OpenSharedResource round trip on every single frame.
+    ID3D11Texture2D* videoTextureShared = vq->GetSharedTextureForCopy(sharedHandle);
+    if (!videoTextureShared) {
+        logger->error("TextureUpdater: no copy target for the shared texture, frame dropped");
         return;
     }
-    deviceCtx->CopySubresourceRegion(videoTextureShared, 0, 0, 0, 0, t_frame, t_index, 0);
-    deviceCtx->Flush();
 
-    videoTextureShared->Release();
-    dev->Release();
+    deviceCtx->CopySubresourceRegion(videoTextureShared, 0, 0, 0, 0, t_frame, t_index, 0);
+    // The decoder reuses its own texture for the next frame, so this copy has to
+    // be complete before that happens.
+    deviceCtx->Flush();
 }
