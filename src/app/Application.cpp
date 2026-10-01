@@ -468,7 +468,7 @@ void Application::InitHandlers() {
     };
 
     m_handlers[WM_ENTERSIZEMOVE] = [this](MSG& m, bool& handled) -> LRESULT {
-        if (m_controller) m_controller->Pause();
+        if (m_controller) m_controller->Pause(PauseReason::WindowDrag);
         if (g_isFullscreen || !(GetKeyState(VK_MENU) & 0x8000)) return 0;
         return 0;
     };
@@ -489,7 +489,7 @@ void Application::InitHandlers() {
     };
 
     m_handlers[WM_EXITSIZEMOVE] = [this](MSG& m, bool& handled) -> LRESULT {
-        if (m_controller) m_controller->Resume();
+        if (m_controller) m_controller->Resume(PauseReason::WindowDrag);
         if (g_isFullscreen || !m_moveActive) return 0;
         m_moveActive = false;
 

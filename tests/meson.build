@@ -54,3 +54,15 @@ test('VideoControllerIntegration',
         vshader, pshader, cpshader,
         include_directories: include_directories('../src'),
         dependencies: [gtest_dep, libavcodec, libavformat, libavutil, spdlog]))
+
+test('VideoControllerPauseReasons',
+    executable('test_video_controller_pause_reasons',
+        'playback/VideoControllerPauseReasons_test.cpp',
+        '../src/playback/VideoController.cpp',
+        '../src/playback/TextureUpdater.cpp',
+        '../src/render/VideoQuad.cpp',
+        '../src/render/SwapChainManager.cpp',
+        '../src/platform/Logger.cpp',
+        vshader, pshader, cpshader,
+        include_directories: include_directories('../src'),
+        dependencies: [gtest_dep, libavcodec, libavformat, libavutil, spdlog]))

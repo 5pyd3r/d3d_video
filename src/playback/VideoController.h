@@ -13,6 +13,15 @@
 
 enum class PlayState { Play = 0, Pause = 1, Stop = 2 };
 
+// Why playback is currently held. A window drag and a system suspend can overlap,
+// so each caller owns exactly one reason: playback resumes only after every reason
+// that paused it has been released, and no reason can revive a controller that is
+// not paused (stopped, or a source that never opened).
+enum class PauseReason : unsigned {
+    WindowDrag = 0,
+    SystemSuspend = 1,
+};
+
 class VideoController {
 public:
     VideoController();
@@ -23,8 +32,8 @@ public:
 
     void SetSource(std::unique_ptr<IVideoSource> source);
     void StopSource();
-    void Pause();
-    void Resume();
+    void Pause(PauseReason reason);
+    void Resume(PauseReason reason);
     uint32_t Render(HWND hwnd);
     void OnSystemSuspend();
     void OnSystemResume();
@@ -62,6 +71,12 @@ private:
     void UpdatePowerOverride(bool playing);
     void UpdateWindowTitle(HWND hwnd);
 
+    static unsigned ToPauseMask(PauseReason reason) {
+        return 1u << static_cast<unsigned>(reason);
+    }
+
+    // One bit per reason currently holding playback.
+    unsigned m_pauseReasons = 0;
     PlayState m_state = PlayState::Stop;
 };
 
