@@ -13,11 +13,8 @@ public:
         virtual LRESULT OnMessage(MSG& msg, bool& handled) = 0;
     };
 
+    // Runs until WM_QUIT arrives and returns its exit code.
     int Run(HWND hwnd, ICallback* cb);
-    void Quit();
-
-private:
-    bool m_quitFlag = false;
 };
 
 #endif

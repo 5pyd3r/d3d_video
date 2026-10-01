@@ -15,7 +15,9 @@ void LogStackTrace(PCONTEXT context) {
         DWORD64 end;
         char name[MAX_PATH];
     };
-    ModuleEntry modules[1024];
+    // Static, not automatic: a 1024-entry module table with MAX_PATH names is
+    // ~280 KB, and this handler runs on a stack that may already be in trouble.
+    static ModuleEntry modules[1024];
     unsigned int moduleCount = 0;
 
     HANDLE hProc = GetCurrentProcess();
@@ -32,6 +34,13 @@ void LogStackTrace(PCONTEXT context) {
             }
         }
     }
+
+    auto isModuleAddress = [&](DWORD64 addr) -> bool {
+        for (unsigned int i = 0; i < moduleCount; i++) {
+            if (addr >= modules[i].base && addr < modules[i].end) return true;
+        }
+        return false;
+    };
 
     auto resolveAddr = [&](DWORD64 addr) -> std::string {
         for (unsigned int i = 0; i < moduleCount; i++) {
@@ -59,6 +68,11 @@ void LogStackTrace(PCONTEXT context) {
 
         logger->critical("{:>3} {} (0x{:016X})", i, resolveAddr(rip), rip);
 
+        // RtlLookupFunctionEntry faults on an address outside every loaded module
+        // (a corrupted frame pointer, JIT code, or a stack that no longer makes
+        // sense), so stop the walk instead of crashing inside the crash handler.
+        if (!isModuleAddress(rip)) break;
+
         DWORD64 imageBase = 0;
         PRUNTIME_FUNCTION fnEntry = RtlLookupFunctionEntry(rip, &imageBase, NULL);
         if (!fnEntry) break;
@@ -68,7 +82,7 @@ void LogStackTrace(PCONTEXT context) {
         RtlVirtualUnwind(UNW_FLAG_NHANDLER, imageBase, rip, fnEntry,
                          &ctx, &handlerData, &establisherFrame, NULL);
     }
-#else
+#elif defined(_M_IX86)
     STACKFRAME64 stackFrame = {};
     DWORD machineType = IMAGE_FILE_MACHINE_I386;
     stackFrame.AddrPC.Offset = context->Eip;
@@ -86,6 +100,8 @@ void LogStackTrace(PCONTEXT context) {
         if (stackFrame.AddrPC.Offset == 0) break;
         logger->critical("{:>3} {} (0x{:016X})", i, resolveAddr(stackFrame.AddrPC.Offset), stackFrame.AddrPC.Offset);
     }
+#else
+    logger->critical("=== Stack walk is not implemented for this architecture ===");
 #endif
 }
 
