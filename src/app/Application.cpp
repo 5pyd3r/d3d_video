@@ -67,7 +67,15 @@ STDMETHODIMP_(ULONG) Application::AddRef() {
 }
 
 STDMETHODIMP_(ULONG) Application::Release() {
+    // Application is a stack object in WinMain(). OLE holds a reference while drag
+    // and drop is registered, but this object is never COM-owned and must not
+    // delete itself at zero. The count is clamped so a stray Release cannot hand a
+    // caller a "destroyed" object that is still in use.
     ULONG count = InterlockedDecrement(&m_refCount);
+    if (count == 0) {
+        InterlockedIncrement(&m_refCount);
+        return 1;
+    }
     return count;
 }
 
@@ -192,11 +200,15 @@ void Application::HandleTextDrop(IDataObject* pDataObj) {
     auto* ctrl = m_controller.get();
     if (!ctrl) return;
 
+    // A local path and a URL need the same handling (FFmpeg opens either), so the
+    // classification only feeds the log: it used to select between two identical
+    // branches, which made IsStreamUri() look meaningful when it was not.
     if (IsStreamUri(text)) {
-        ctrl->SetSource(WrapSource(std::make_unique<FileSource>(text.c_str(), m_device)));
-    } else {
-        ctrl->SetSource(WrapSource(std::make_unique<FileSource>(text.c_str(), m_device)));
+        logger->info("Text drop: opening '{}' as a stream URI", text);
+    } else if (!IsVideoFile(text)) {
+        logger->warn("Text drop: '{}' has no recognised video extension, trying it anyway", text);
     }
+    ctrl->SetSource(WrapSource(std::make_unique<FileSource>(text.c_str(), m_device)));
 
     auto* src = ctrl->GetSource();
     if (src) {
@@ -331,12 +343,12 @@ void Application::InitHandlers() {
             auto width = GET_X_LPARAM(m.lParam);
             auto height = GET_Y_LPARAM(m.lParam);
             if (width > 0 && height > 0) {
-                if ((GetWindowLongPtr(m.hwnd, GWL_STYLE) & (WS_VISIBLE | WS_POPUP | WS_CLIPSIBLINGS)) == (WS_VISIBLE | WS_POPUP | WS_CLIPSIBLINGS)) {
-                    RECT cr = {0, 0, 100, 100};
-                    AdjustWindowRect(&cr, WS_OVERLAPPEDWINDOW, FALSE);
-                    width = width - (cr.right - cr.left - 100);
-                    height = height - (cr.bottom - cr.top - 100);
-                }
+                // The window is created as WS_POPUP | WS_VISIBLE, so its client area
+                // is the whole window and no frame compensation applies. The old
+                // branch subtracted a WS_OVERLAPPEDWINDOW frame whenever the style
+                // contained WS_CLIPSIBLINGS - a bit this process never sets - so it
+                // could not run; adding a framed window mode later has to opt in
+                // here instead of relying on that condition.
                 m_controller->ResizeSwapChain(width, height);
             }
         }
