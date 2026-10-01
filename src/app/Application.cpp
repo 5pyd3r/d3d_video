@@ -20,6 +20,32 @@
 #define DEFAULT_WINDOW_WIDTH 800
 #define DEFAULT_WINDOW_HEIGHT 600
 
+// Alt+Esc is registered as a system-wide hotkey. Windows itself does not claim
+// this combination, and Alt is required so the hotkey does not swallow a plain
+// Esc, which cancels capture picking and stops playback in the focused window.
+static constexpr int kCornerQuakeHotkeyId = 1;
+static constexpr UINT kCornerQuakeHotkeyVk = VK_ESCAPE;
+static constexpr UINT kCornerQuakeModKey = MOD_ALT;
+
+// Repeat handling for the toggle gesture. The hotkey is registered without
+// MOD_NOREPEAT: that flag suppresses repeats by watching for a key-up, which a
+// keyboard that only reports key-down never sends, so the toggle would fire once
+// and then stay locked out. Suppression happens here instead, with two floors:
+//   * duplicate: deliveries arriving back-to-back are one gesture.
+//   * repeat-grace: while the key still reads as held, a delivery is treated as
+//     auto-repeat, but only for this long, so a keyboard that never reports a
+//     key-up cannot lock the toggle out forever.
+static constexpr int kCornerQuakeDuplicateMs = 150;
+static constexpr int kCornerQuakeRepeatGraceMs = 900;
+
+// Where the collapsed player is parked. A window only receives its registered
+// hotkey while it is neither hidden nor minimized (measured deliveries: 2/2 when
+// visible or parked, 0/2 after SW_HIDE or SW_MINIMIZE), so collapsing must keep
+// WS_VISIBLE and the normal display state. WS_EX_TOOLWINDOW plus an off-screen
+// position hide it from the user, the taskbar and Alt+Tab instead.
+static constexpr int kCornerQuakeParkX = -32000;
+static constexpr int kCornerQuakeParkY = -32000;
+
 static bool g_isFullscreen = false;
 static RECT g_windowedRect;
 static Application* g_app = nullptr;
@@ -279,6 +305,13 @@ std::unique_ptr<IVideoSource> Application::WrapSource(std::unique_ptr<IVideoSour
 }
 
 void Application::OnIdle() {
+    // Track key-up ourselves: RegisterHotKey without MOD_NOREPEAT delivers repeats
+    // while the key is held, and a release is the only trustworthy "new gesture"
+    // signal.
+    if (!(GetAsyncKeyState(static_cast<int>(kCornerQuakeHotkeyVk)) & 0x8000)) {
+        m_hotkeyReleased = true;
+    }
+    SyncHiddenStateWithWindow();
     m_controller->Render(m_window);
 }
 
@@ -291,16 +324,21 @@ LRESULT Application::OnMessage(MSG& msg, bool& handled) {
 
 void Application::InitHandlers() {
     m_handlers[WM_SIZE] = [this](MSG& m, bool& handled) -> LRESULT {
+        // Minimizing reports a 0x0 client area; resizing the swapchain to that
+        // would leave the backbuffer inconsistent for the next restore.
+        if (m.wParam == SIZE_MINIMIZED) { handled = true; return 0; }
         if (m_controller) {
             auto width = GET_X_LPARAM(m.lParam);
             auto height = GET_Y_LPARAM(m.lParam);
-            if ((GetWindowLongPtr(m.hwnd, GWL_STYLE) & (WS_VISIBLE | WS_POPUP | WS_CLIPSIBLINGS)) == (WS_VISIBLE | WS_POPUP | WS_CLIPSIBLINGS)) {
-                RECT cr = {0, 0, 100, 100};
-                AdjustWindowRect(&cr, WS_OVERLAPPEDWINDOW, FALSE);
-                width = width - (cr.right - cr.left - 100);
-                height = height - (cr.bottom - cr.top - 100);
+            if (width > 0 && height > 0) {
+                if ((GetWindowLongPtr(m.hwnd, GWL_STYLE) & (WS_VISIBLE | WS_POPUP | WS_CLIPSIBLINGS)) == (WS_VISIBLE | WS_POPUP | WS_CLIPSIBLINGS)) {
+                    RECT cr = {0, 0, 100, 100};
+                    AdjustWindowRect(&cr, WS_OVERLAPPEDWINDOW, FALSE);
+                    width = width - (cr.right - cr.left - 100);
+                    height = height - (cr.bottom - cr.top - 100);
+                }
+                m_controller->ResizeSwapChain(width, height);
             }
-            m_controller->ResizeSwapChain(width, height);
         }
         handled = true; return 0;
     };
@@ -409,6 +447,13 @@ void Application::InitHandlers() {
         handled = true; return 0;
     };
 
+    m_handlers[WM_HOTKEY] = [this](MSG& m, bool& handled) -> LRESULT {
+        if (m.wParam == kCornerQuakeHotkeyId) {
+            ToggleCornerQuake();
+        }
+        handled = true; return 0;
+    };
+
     m_handlers[WM_POWERBROADCAST] = [this](MSG& m, bool& handled) -> LRESULT {
         if (m.wParam == PBT_APMSUSPEND && m_controller) {
             m_controller->OnSystemSuspend();
@@ -509,6 +554,149 @@ void Application::InitHandlers() {
     };
 }
 
+// --- Alt+Esc corner quake ----------------------------------------------------
+
+void Application::ToggleCornerQuake() {
+    // Capture picking waits for a click on a target window; collapsing the player
+    // mid-gesture would leave SetCapture dangling.
+    if (m_pickingMode) {
+        logger->info("Alt+Esc ignored: capture picking in progress");
+        return;
+    }
+
+    // The same press can arrive more than once, and holding the combination makes
+    // Windows repeat it: treat anything inside the duplicate window as one gesture,
+    // and while the key still reads as held treat it as auto-repeat -- but only for
+    // the grace window, so a keyboard that never sends a key-up cannot lock the
+    // toggle out.
+    const auto now = std::chrono::steady_clock::now();
+    // Note: windows.h defines max()/min() as macros, so avoid std::chrono::...::max().
+    const bool haveLast = m_lastToggle.time_since_epoch().count() != 0;
+    const auto sinceLast = haveLast
+        ? std::chrono::duration_cast<std::chrono::milliseconds>(now - m_lastToggle)
+        : std::chrono::milliseconds(0);
+    if (haveLast && sinceLast < std::chrono::milliseconds(kCornerQuakeDuplicateMs)) {
+        logger->info("Alt+Esc ignored: duplicate within {} ms", kCornerQuakeDuplicateMs);
+        return;
+    }
+    if (haveLast && !m_hotkeyReleased &&
+        sinceLast < std::chrono::milliseconds(kCornerQuakeRepeatGraceMs)) {
+        logger->info("Alt+Esc ignored: key still held (auto-repeat)");
+        return;
+    }
+    m_lastToggle = now;
+    m_hotkeyReleased = false;
+
+    if (m_hidden) {
+        ShowInCorner();
+    } else {
+        HideFromCorner();
+    }
+}
+
+void Application::HideFromCorner() {
+    if (!m_window) return;
+
+    // A fullscreen window cannot be anchored in a corner, and silently ignoring
+    // the hotkey while fullscreen is more confusing than leaving fullscreen.
+    if (g_isFullscreen) {
+        g_isFullscreen = false;
+        RECT r = g_windowedRect;
+        SetWindowPos(m_window, HWND_NOTOPMOST, r.left, r.top,
+                     r.right - r.left, r.bottom - r.top,
+                     SWP_NOOWNERZORDER | SWP_FRAMECHANGED);
+        logger->info("Alt+Esc: left fullscreen before collapsing");
+    }
+
+    m_hidden = true;
+    if (m_controller) m_controller->SetHidden(true);
+
+    ParkOffscreen();
+    logger->info("Alt+Esc: player collapsed (parked off screen, no taskbar, no Alt+Tab entry)");
+}
+
+void Application::ParkOffscreen() {
+    // WS_EX_TOOLWINDOW removes the taskbar button and the Alt+Tab entry; the
+    // off-screen position makes it invisible without clearing WS_VISIBLE.
+    LONG_PTR exStyle = GetWindowLongPtr(m_window, GWL_EXSTYLE);
+    SetWindowLongPtr(m_window, GWL_EXSTYLE, exStyle | WS_EX_TOOLWINDOW);
+    SetWindowPos(m_window, nullptr, kCornerQuakeParkX, kCornerQuakeParkY, 0, 0,
+                 SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED);
+    m_collapsedParked = true;
+}
+
+void Application::UnparkFromOffscreen() {
+    if (!m_collapsedParked) return;
+    LONG_PTR exStyle = GetWindowLongPtr(m_window, GWL_EXSTYLE);
+    SetWindowLongPtr(m_window, GWL_EXSTYLE, exStyle & ~WS_EX_TOOLWINDOW);
+    m_collapsedParked = false;
+}
+
+void Application::ShowInCorner() {
+    if (!m_window) return;
+
+    // The collapsed player is normally parked off screen while still visible; a
+    // window minimized by other means needs a restore instead.
+    UnparkFromOffscreen();
+    ShowWindow(m_window, IsIconic(m_window) ? SW_RESTORE : SW_SHOW);
+    MoveToCursorMonitorCorner();
+
+    m_hidden = false;
+    if (m_controller) m_controller->SetHidden(false);
+    SetForegroundWindow(m_window);
+    logger->info("Alt+Esc: player summoned");
+}
+
+bool Application::MoveToCursorMonitorCorner() {
+    POINT pt = {};
+    if (!GetCursorPos(&pt)) {
+        logger->warn("Alt+Esc: GetCursorPos failed, keeping current position");
+        return false;
+    }
+
+    HMONITOR hMonitor = MonitorFromPoint(pt, MONITOR_DEFAULTTONEAREST);
+    MONITORINFO mi = {};
+    mi.cbSize = sizeof(MONITORINFO);
+    if (!GetMonitorInfo(hMonitor, &mi)) {
+        logger->warn("Alt+Esc: GetMonitorInfo failed, keeping current position");
+        return false;
+    }
+
+    // Keep the current size and only anchor the top-left corner, using the work
+    // area so a taskbar docked left or top cannot cover the window. The frame
+    // change flushes the WS_EX_TOOLWINDOW removal done by UnparkFromOffscreen().
+    SetWindowPos(m_window, nullptr, mi.rcWork.left, mi.rcWork.top, 0, 0,
+                 SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED);
+    logger->info("Alt+Esc: anchored to ({}, {})", mi.rcWork.left, mi.rcWork.top);
+    return true;
+}
+
+void Application::SyncHiddenStateWithWindow() {
+    if (!m_window) return;
+
+    // While parked, keep the window out of the minimized state: minimizing also
+    // stops hotkey delivery, and a parked window has no taskbar entry to recover
+    // from. Re-parking is visually a no-op because it is off screen either way.
+    if (m_collapsedParked && IsIconic(m_window)) {
+        ShowWindow(m_window, SW_RESTORE);
+        SetWindowPos(m_window, nullptr, kCornerQuakeParkX, kCornerQuakeParkY, 0, 0,
+                     SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE);
+        logger->warn("Window minimized while collapsed; re-parked to keep the hotkey reachable");
+    }
+
+    // "Off screen" covers every collapse style: parked (no monitor intersects the
+    // window) plus hidden or minimized by other means such as Win+D.
+    const bool offscreen = IsIconic(m_window) != FALSE ||
+                           !IsWindowVisible(m_window) ||
+                           MonitorFromWindow(m_window, MONITOR_DEFAULTTONULL) == nullptr;
+    if (offscreen == m_hidden) return;
+
+    m_hidden = offscreen;
+    if (m_controller) m_controller->SetHidden(offscreen);
+    logger->info(offscreen ? "Window off screen outside the hotkey: rendering suspended"
+                           : "Window back on screen outside the hotkey: rendering resumed");
+}
+
 int Application::Run(HINSTANCE hInstance) {
     InitCrashHandler();
     SetProcessDPIAware();
@@ -561,12 +749,28 @@ int Application::Run(HINSTANCE hInstance) {
 
     m_powerNotify = RegisterSuspendResumeNotification(m_window, DEVICE_NOTIFY_WINDOW_HANDLE);
 
+    // Deliberately no MOD_NOREPEAT: its suppression logic depends on seeing a
+    // key-up, so a keyboard that only reports key-down gets exactly one delivery
+    // ever (measured 1/3 versus 3/3 without it) and the collapsed window becomes
+    // unreachable. Repeat handling lives in ToggleCornerQuake() instead.
+    m_hotkeyRegistered = RegisterHotKey(NULL, kCornerQuakeHotkeyId,
+                                        kCornerQuakeModKey, kCornerQuakeHotkeyVk) != FALSE;
+    if (m_hotkeyRegistered) {
+        logger->info("RegisterHotKey(Alt+Esc) ok: the hotkey toggles the corner quake from any app");
+    } else {
+        logger->error("RegisterHotKey(Alt+Esc) failed: 0x{:08X}", (uint32_t)GetLastError());
+    }
+
     MessageLoop loop;
     int exitCode = loop.Run(m_window, static_cast<MessageLoop::ICallback*>(this));
 
     if (m_powerNotify) {
         UnregisterSuspendResumeNotification(m_powerNotify);
         m_powerNotify = nullptr;
+    }
+    if (m_hotkeyRegistered) {
+        UnregisterHotKey(NULL, kCornerQuakeHotkeyId);
+        m_hotkeyRegistered = false;
     }
     RevokeDragDrop(m_window);
     RoUninitialize();

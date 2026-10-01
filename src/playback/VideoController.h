@@ -28,6 +28,7 @@ public:
     uint32_t Render(HWND hwnd);
     void OnSystemSuspend();
     void OnSystemResume();
+    void SetHidden(bool hidden);
     void ResizeSwapChain(int width, int height);
     PlayState GetState() const { return m_state; }
 
@@ -55,6 +56,7 @@ private:
     std::chrono::steady_clock::time_point m_startTime;
     std::chrono::steady_clock::time_point m_pausedTime;
     bool m_powerOverrideActive = false;
+    bool m_hidden = false;
     std::string m_lastSourceTitle;
 
     void UpdatePowerOverride(bool playing);
