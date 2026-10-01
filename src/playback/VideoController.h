@@ -43,7 +43,6 @@ public:
 
     IVideoSource* GetSource() const { return m_source.get(); }
     nv::VideoQuad* GetVideoQuad() const { return m_vq.get(); }
-    SwapChainManager& GetSwapChainMgr() { return m_swapChainMgr; }
 
 private:
     void Draw(HWND hwnd);

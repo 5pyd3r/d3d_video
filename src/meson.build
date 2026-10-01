@@ -35,7 +35,6 @@ app_src = files(
 detect_src = files(
     'detect/VideoProcSource.cpp',
     'detect/GrayscaleFilter.cpp',
-    'detect/LogAction.cpp',
 )
 
 d3d_video_src = files(

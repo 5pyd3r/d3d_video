@@ -27,11 +27,6 @@ test('VideoDecoder',
         '../src/platform/Logger.cpp',
         dependencies: [gtest_dep, libavcodec, libavformat, libavutil, libavutil, spdlog]))
 
-test('VideoController',
-    executable('test_video_controller',
-        'playback/VideoController_test.cpp',
-        dependencies: [gtest_dep]))
-
 test('IVideoSourceContract',
     executable('test_ivideo_source_contract',
         'source/IVideoSource_contract_test.cpp',

@@ -4,6 +4,11 @@
 
 #include "../../src/source/IVideoSource.h"
 
+// Contract test for the IVideoSource interface itself: a minimal implementation
+// must satisfy every pure virtual, and the frame/result enums must keep their
+// meaning. It deliberately exercises only the mock - the concrete sources
+// (FileSource, CaptureSource, PlaylistSource, VideoProcSource) are covered by
+// their own tests - so it must never be read as playback coverage.
 namespace nv { class VideoQuad; }
 
 // Minimal mock: configurable return values for all IVideoSource methods
@@ -36,20 +41,20 @@ public:
 
 // --- GetFrameDuration is pure virtual ---
 
-TEST(MockVideoSourceTest, GetFrameDuration_ReturnsConfiguredValue) {
+TEST(IVideoSourceContractTest, GetFrameDuration_ReturnsConfiguredValue) {
     MockVideoSource src(SourceType::File);
     src.m_frameDuration = 1.0 / 60.0;
     EXPECT_DOUBLE_EQ(src.GetFrameDuration(), 1.0 / 60.0);
 }
 
-TEST(MockVideoSourceTest, GetFrameDuration_DefaultValue) {
+TEST(IVideoSourceContractTest, GetFrameDuration_DefaultValue) {
     MockVideoSource src(SourceType::File);
     EXPECT_DOUBLE_EQ(src.GetFrameDuration(), 1.0 / 60.0); // matches m_frameDuration init
 }
 
 // --- ReadFrame semantics ---
 
-TEST(MockVideoSourceTest, ReadFrame_SetsFrameType) {
+TEST(IVideoSourceContractTest, ReadFrame_SetsFrameType) {
     MockVideoSource src(SourceType::Capture);
     VideoFrame frame;
     FrameResult ok = src.ReadFrame(frame, nullptr, nullptr);
@@ -57,7 +62,7 @@ TEST(MockVideoSourceTest, ReadFrame_SetsFrameType) {
     EXPECT_EQ(frame.type, SourceType::Capture);
 }
 
-TEST(MockVideoSourceTest, ReadFrame_ReturnsFalseWhenConfigured) {
+TEST(IVideoSourceContractTest, ReadFrame_ReturnsFalseWhenConfigured) {
     MockVideoSource src(SourceType::File);
     src.m_readFrameResult = FrameResult::End;
     VideoFrame frame;
@@ -67,7 +72,7 @@ TEST(MockVideoSourceTest, ReadFrame_ReturnsFalseWhenConfigured) {
 
 // --- Init semantics ---
 
-TEST(MockVideoSourceTest, Init_ReturnsConfiguredValue) {
+TEST(IVideoSourceContractTest, Init_ReturnsConfiguredValue) {
     MockVideoSource src(SourceType::File);
     EXPECT_TRUE(src.Init());
     src.m_initResult = false;
@@ -76,7 +81,7 @@ TEST(MockVideoSourceTest, Init_ReturnsConfiguredValue) {
 
 // --- GetTitle returns string ---
 
-TEST(MockVideoSourceTest, GetTitle_NotNull) {
+TEST(IVideoSourceContractTest, GetTitle_NotNull) {
     MockVideoSource src(SourceType::File);
     EXPECT_STREQ(src.GetTitle(), "Mock");
 }

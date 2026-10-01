@@ -1,10 +1,9 @@
 #include "MessageLoop.h"
 
 int MessageLoop::Run(HWND hwnd, ICallback* cb) {
-    m_quitFlag = false;
     MSG msg = {};
 
-    while (!m_quitFlag) {
+    for (;;) {
         BOOL hasMsg = PeekMessage(&msg, nullptr, 0, 0, PM_REMOVE);
         if (hasMsg) {
             if (msg.message == WM_QUIT) break;
@@ -19,8 +18,4 @@ int MessageLoop::Run(HWND hwnd, ICallback* cb) {
     }
 
     return static_cast<int>(msg.wParam);
-}
-
-void MessageLoop::Quit() {
-    m_quitFlag = true;
 }
