@@ -28,6 +28,7 @@ private:
     VideoDecoder m_decoder;
     AVFrame* m_frame = nullptr;
     AVPacket* m_packet = nullptr;
+    bool m_budgetWarned = false;
     double m_frameRate = 0.0;
     double m_frameDuration = 1.0 / 30.0;
     int m_width = 800;
