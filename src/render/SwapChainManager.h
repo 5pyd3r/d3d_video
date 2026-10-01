@@ -27,6 +27,8 @@ private:
     // BeginFrame runs once per frame; a missing view is reported once per outage
     // instead of flooding the log while nothing can be drawn.
     bool m_missingRtvLogged = false;
+    // Same idea for Present: a lost device keeps failing every frame.
+    bool m_presentFailedLogged = false;
 };
 
 #endif

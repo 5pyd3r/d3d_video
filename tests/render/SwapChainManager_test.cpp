@@ -112,3 +112,15 @@ TEST_F(SwapChainManagerTest, ResizeToValidSizeRebuildsTheViewAndRendersAFrame) {
     m_mgr->Resize(320, 240);
     EXPECT_NE(m_mgr->GetRenderTargetView(), nullptr);
 }
+// No fixture on purpose: an uninitialised manager must stay inert instead of
+// crashing the frame loop, so this case runs even where no D3D11 device exists.
+TEST(SwapChainManagerLifetimeTest, UninitialisedManagerIsInert) {
+    SwapChainManager mgr;
+    EXPECT_EQ(mgr.GetRenderTargetView(), nullptr);
+
+    mgr.BeginFrame();
+    mgr.EndFrame();
+    mgr.Resize(640, 480);
+
+    EXPECT_EQ(mgr.GetRenderTargetView(), nullptr);
+}

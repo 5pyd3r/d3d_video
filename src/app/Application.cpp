@@ -774,7 +774,7 @@ int Application::Run(HINSTANCE hInstance) {
     }
 
     MessageLoop loop;
-    int exitCode = loop.Run(m_window, static_cast<MessageLoop::ICallback*>(this));
+    int exitCode = loop.Run(static_cast<MessageLoop::ICallback*>(this));
 
     if (m_powerNotify) {
         UnregisterSuspendResumeNotification(m_powerNotify);
