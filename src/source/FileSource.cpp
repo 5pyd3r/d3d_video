@@ -39,10 +39,23 @@ bool FileSource::Init() {
 }
 
 FrameResult FileSource::ReadFrame(VideoFrame& out, ID3D11DeviceContext* ctx, nv::VideoQuad* vq) {
+    // One packet reused for the whole playback session instead of an allocation
+    // per frame.
+    if (!m_packet) {
+        m_packet = av_packet_alloc();
+        if (!m_packet) {
+            logger->error("FileSource: av_packet_alloc failed");
+            return FrameResult::End;
+        }
+    }
+
     // Decode until we get a video frame or run out of packets
     for (;;) {
-        AVPacket* packet = m_mediaSource.ReadPacket();
-        if (!packet) {
+        MediaSource::PacketStatus status = m_mediaSource.ReadPacket(m_packet);
+        if (status != MediaSource::PacketStatus::Got) {
+            if (status == MediaSource::PacketStatus::Error) {
+                logger->error("FileSource: read error on '{}', treating it as end of stream", m_title);
+            }
             // Flush decoder
             av_frame_free(&m_frame);
             auto flushResult = m_decoder.Flush(0);
@@ -50,11 +63,11 @@ FrameResult FileSource::ReadFrame(VideoFrame& out, ID3D11DeviceContext* ctx, nv:
                 m_frame = flushResult.frame;
                 break;
             }
-            return FrameResult::End;  // EOF
+            return FrameResult::End;
         }
 
-        auto decoded = m_decoder.SendAndReceive(packet);
-        av_packet_free(&packet);
+        auto decoded = m_decoder.SendAndReceive(m_packet);
+        av_packet_unref(m_packet);
 
         if (decoded.type == AVMEDIA_TYPE_VIDEO) {
             av_frame_free(&m_frame);
@@ -94,6 +107,7 @@ RenderDescriptor FileSource::GetRenderDescriptor(nv::VideoQuad* vq) const {
 
 void FileSource::Close() {
     av_frame_free(&m_frame);
+    if (m_packet) av_packet_free(&m_packet);
     m_decoder.Close();
     m_mediaSource.Close();
 }
