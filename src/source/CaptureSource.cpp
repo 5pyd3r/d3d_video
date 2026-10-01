@@ -15,7 +15,6 @@ bool CaptureSource::Init() {
 
     m_width = m_capture.GetWidth();
     m_height = m_capture.GetHeight();
-    logger->info("CaptureSource: capturing '{}' {}x{}", m_title.c_str(), m_width, m_height);
 
     wchar_t wtitle[256] = {};
     GetWindowTextW(m_targetWindow, wtitle, 256);
@@ -33,6 +32,8 @@ bool CaptureSource::Init() {
         snprintf(buf, sizeof(buf), "Window 0x%llX", (uint64_t)m_targetWindow);
         m_title = buf;
     }
+
+    logger->info("CaptureSource: capturing '{}' {}x{}", m_title.c_str(), m_width, m_height);
     return true;
 }
 

@@ -97,10 +97,12 @@ TEST_F(VideoDecoderTest, SendAndReceive_ProducesVideoFrame) {
     double fps = 0;
     decoder.Init(source.GetFormatContext(), fps);
 
+    // ReadPacket() fills a caller-owned packet now, so it is allocated once and
+    // reused instead of being handed out per call.
+    AVPacket* pkt = av_packet_alloc();
     bool gotVideo = false;
     for (int i = 0; i < 100 && !gotVideo; i++) {
-        AVPacket* pkt = source.ReadPacket();
-        if (!pkt) {
+        if (source.ReadPacket(pkt) != MediaSource::PacketStatus::Got) {
             // Flush all decoders after last packet
             for (unsigned int j = 0; j < source.GetFormatContext()->nb_streams && !gotVideo; j++) {
                 auto result = decoder.Flush(j);
@@ -114,7 +116,7 @@ TEST_F(VideoDecoderTest, SendAndReceive_ProducesVideoFrame) {
             break;
         }
         auto result = decoder.SendAndReceive(pkt);
-        av_packet_free(&pkt);
+        av_packet_unref(pkt);
         if (result.type == AVMEDIA_TYPE_VIDEO && result.frame) {
             EXPECT_GT(result.frame->width, 0);
             EXPECT_GT(result.frame->height, 0);
@@ -122,6 +124,7 @@ TEST_F(VideoDecoderTest, SendAndReceive_ProducesVideoFrame) {
             gotVideo = true;
         }
     }
+    av_packet_free(&pkt);
     EXPECT_TRUE(gotVideo);
     decoder.Close();
 }

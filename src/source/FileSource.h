@@ -27,6 +27,7 @@ private:
     MediaSource m_mediaSource;
     VideoDecoder m_decoder;
     AVFrame* m_frame = nullptr;
+    AVPacket* m_packet = nullptr;
     double m_frameRate = 0.0;
     double m_frameDuration = 1.0 / 30.0;
     int m_width = 800;

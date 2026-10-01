@@ -32,8 +32,9 @@ FrameResult PlaylistSource::ReadFrame(VideoFrame& out, ID3D11DeviceContext* ctx,
     if (result == FrameResult::Got) return FrameResult::Got;
     if (result == FrameResult::NotReady) return FrameResult::NotReady;
 
-    // Current file ended — try next
-    if (m_index + 1 < m_files.size()) {
+    // Current file ended — advance to the next entry that actually opens. One
+    // unreadable file must not end the whole playlist.
+    while (m_index + 1 < m_files.size()) {
         m_currentSource.reset();
         m_index++;
         if (OpenCurrent())

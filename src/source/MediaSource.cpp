@@ -19,18 +19,30 @@ uint32_t MediaSource::Open(const char* filePath) {
         logger->error("avformat_open_input failed: {}, file: {}", errStr, filePath);
         return 1;
     }
-    avformat_find_stream_info(fmtCtx, NULL);
+    // A failure here only degrades the stream metadata (frame rate, duration);
+    // playback can still proceed, so it is reported but not treated as fatal.
+    int infoErr = avformat_find_stream_info(fmtCtx, NULL);
+    if (infoErr < 0) {
+        char infoErrStr[256];
+        av_make_error_string(infoErrStr, sizeof(infoErrStr), infoErr);
+        logger->warn("avformat_find_stream_info failed: {}", infoErrStr);
+    }
     return 0;
 }
 
-AVPacket* MediaSource::ReadPacket() {
-    AVPacket* packet = av_packet_alloc();
-    int ret = av_read_frame(fmtCtx, packet);
-    if (ret < 0) {
-        av_packet_free(&packet);
-        return nullptr;
-    }
-    return packet;
+MediaSource::PacketStatus MediaSource::ReadPacket(AVPacket* out) {
+    if (!fmtCtx || !out) return PacketStatus::Error;
+
+    av_packet_unref(out);
+    int ret = av_read_frame(fmtCtx, out);
+    if (ret >= 0) return PacketStatus::Got;
+
+    if (ret == AVERROR_EOF) return PacketStatus::EndOfStream;
+
+    char errStr[256];
+    av_make_error_string(errStr, sizeof(errStr), ret);
+    logger->warn("av_read_frame failed: {}", errStr);
+    return PacketStatus::Error;
 }
 
 void MediaSource::Close() {

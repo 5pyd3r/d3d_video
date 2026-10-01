@@ -94,12 +94,37 @@ TEST_F(MediaSourceTest, Open_ValidFile_ReturnsZero) {
 
 TEST_F(MediaSourceTest, ReadPacket_AfterOpen_ReturnsPacket) {
     MediaSource source;
-    source.Open(testFilePath.c_str());
-    AVPacket* pkt = source.ReadPacket();
-    if (pkt) {
-        av_packet_free(&pkt);
-    }
+    ASSERT_EQ(source.Open(testFilePath.c_str()), 0u);
+
+    AVPacket* pkt = av_packet_alloc();
+    EXPECT_EQ(source.ReadPacket(pkt), MediaSource::PacketStatus::Got);
+
+    av_packet_unref(pkt);
+    av_packet_free(&pkt);
     source.Close();
+}
+
+TEST_F(MediaSourceTest, ReadPacket_ExhaustedStream_ReportsEndOfStream) {
+    MediaSource source;
+    ASSERT_EQ(source.Open(testFilePath.c_str()), 0u);
+
+    AVPacket* pkt = av_packet_alloc();
+    MediaSource::PacketStatus status = MediaSource::PacketStatus::Got;
+    for (int i = 0; i < 100 && status == MediaSource::PacketStatus::Got; ++i) {
+        status = source.ReadPacket(pkt);
+        av_packet_unref(pkt);
+    }
+    EXPECT_EQ(status, MediaSource::PacketStatus::EndOfStream);
+
+    av_packet_free(&pkt);
+    source.Close();
+}
+
+TEST_F(MediaSourceTest, ReadPacket_WithoutOpen_ReportsError) {
+    MediaSource source;
+    AVPacket* pkt = av_packet_alloc();
+    EXPECT_EQ(source.ReadPacket(pkt), MediaSource::PacketStatus::Error);
+    av_packet_free(&pkt);
 }
 
 TEST_F(MediaSourceTest, Close_AfterOpen_ClearsContext) {
