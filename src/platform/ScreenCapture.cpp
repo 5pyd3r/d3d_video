@@ -125,6 +125,22 @@ void ScreenCapture::StopCapture() {
 
 bool ScreenCapture::ProcessFrame(ID3D11DeviceContext* ctx, nv::VideoQuad* vq,
                                  int& outWidth, int& outHeight) {
+    // This runs once per rendered frame straight from the message loop, where an
+    // escaping exception terminates the process: a closed target window or a
+    // removed device must only end the capture.
+    try {
+        return ProcessFrameImpl(ctx, vq, outWidth, outHeight);
+    } catch (winrt::hresult_error const& e) {
+        logger->error("ScreenCapture: frame acquisition failed: {} (0x{:08X}); stopping capture",
+                      winrt::to_string(e.message()),
+                      static_cast<uint32_t>(e.code()));
+        StopCapture();
+        return false;
+    }
+}
+
+bool ScreenCapture::ProcessFrameImpl(ID3D11DeviceContext* ctx, nv::VideoQuad* vq,
+                                     int& outWidth, int& outHeight) {
     if (!m_impl->framePool) return false;
 
     auto frame = m_impl->framePool.TryGetNextFrame();
