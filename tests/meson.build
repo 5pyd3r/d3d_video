@@ -71,3 +71,14 @@ test('TextureUpdater',
         vshader, pshader, cpshader,
         include_directories: include_directories('../src'),
         dependencies: [gtest_dep, libavcodec, libavformat, libavutil, spdlog]))
+test('SwapChainManager',
+    executable('test_swapchain_manager',
+        'render/SwapChainManager_test.cpp',
+        '../src/render/SwapChainManager.cpp',
+        '../src/platform/Logger.cpp',
+        include_directories: include_directories('../src'),
+        # D3D11CreateDeviceAndSwapChain lives in d3d11.lib. The rest of the project
+        # picks it up through VideoQuad.h's #pragma comment(lib, ...); this target
+        # does not include that header, so the import libraries are declared here.
+        link_args: ['-ld3d11', '-ldxgi'],
+        dependencies: [gtest_dep, spdlog]))
