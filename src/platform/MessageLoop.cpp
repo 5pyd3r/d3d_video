@@ -1,6 +1,6 @@
 #include "MessageLoop.h"
 
-int MessageLoop::Run(HWND hwnd, ICallback* cb) {
+int MessageLoop::Run(ICallback* cb) {
     MSG msg = {};
 
     for (;;) {

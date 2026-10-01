@@ -13,8 +13,9 @@ public:
         virtual LRESULT OnMessage(MSG& msg, bool& handled) = 0;
     };
 
-    // Runs until WM_QUIT arrives and returns its exit code.
-    int Run(HWND hwnd, ICallback* cb);
+    // Runs until WM_QUIT arrives and returns its exit code. Messages are pumped
+    // for the calling thread, so no window handle is needed here.
+    int Run(ICallback* cb);
 };
 
 #endif

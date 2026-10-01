@@ -130,5 +130,18 @@ void SwapChainManager::BeginFrame() {
 
 void SwapChainManager::EndFrame() {
     if (!m_swapChain) return;
-    m_swapChain->Present(1, 0);
+
+    HRESULT hr = m_swapChain->Present(1, 0);
+    // A removed or reset device stops presenting for good; without this the window
+    // simply freezes with nothing in the log to explain it. Note that
+    // DXGI_STATUS_OCCLUDED (a parked or hidden window) is a success code and must
+    // not be reported as a failure.
+    if (FAILED(hr)) {
+        if (!m_presentFailedLogged) {
+            logger->error("SwapChainManager::EndFrame: Present failed: 0x{:08X}", (uint32_t)hr);
+            m_presentFailedLogged = true;
+        }
+    } else {
+        m_presentFailedLogged = false;
+    }
 }
