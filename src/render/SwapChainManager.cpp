@@ -43,20 +43,38 @@ void SwapChainManager::Init(ID3D11Device* device, ID3D11DeviceContext* deviceCtx
 }
 
 void SwapChainManager::Resize(int width, int height) {
-    m_width = width;
-    m_height = height;
+    if (!m_swapChain || !m_device) return;
+    // WM_SIZE already filters zero sizes; guard here too so a bad caller cannot
+    // tear the render target down for a size that can never be created.
+    if (width <= 0 || height <= 0) {
+        logger->error("SwapChainManager::Resize: ignoring invalid size {}x{}", width, height);
+        return;
+    }
 
     if (m_renderTargetView) {
         m_renderTargetView->Release();
         m_renderTargetView = nullptr;
     }
 
-    DXGI_SWAP_CHAIN_DESC desc;
-    m_swapChain->GetDesc(&desc);
-    m_swapChain->ResizeBuffers(desc.BufferCount, width, height, desc.BufferDesc.Format, desc.Flags);
+    DXGI_SWAP_CHAIN_DESC desc = {};
+    HRESULT hr = m_swapChain->GetDesc(&desc);
+    if (FAILED(hr)) {
+        logger->error("SwapChainManager::Resize: GetDesc failed: 0x{:08X}", (uint32_t)hr);
+        return;
+    }
 
+    hr = m_swapChain->ResizeBuffers(desc.BufferCount, width, height, desc.BufferDesc.Format, desc.Flags);
+    const bool resized = SUCCEEDED(hr);
+    if (!resized) {
+        logger->error("SwapChainManager::Resize: ResizeBuffers({}x{}) failed: 0x{:08X}, keeping the current buffers",
+                      width, height, (uint32_t)hr);
+    }
+
+    // Rebuild the view either way: when ResizeBuffers failed the old buffers are
+    // still current, and returning without a render target is what turned a failed
+    // resize into a black window with no trace in the log.
     ID3D11Texture2D* backBuffer = nullptr;
-    HRESULT hr = m_swapChain->GetBuffer(0, __uuidof(ID3D11Texture2D), (void**)&backBuffer);
+    hr = m_swapChain->GetBuffer(0, __uuidof(ID3D11Texture2D), (void**)&backBuffer);
     if (FAILED(hr) || !backBuffer) {
         logger->error("SwapChainManager::Resize: GetBuffer failed: 0x{:08X}", (uint32_t)hr);
         return;
@@ -71,10 +89,30 @@ void SwapChainManager::Resize(int width, int height) {
     if (FAILED(hr)) {
         logger->error("SwapChainManager::Resize: CreateRenderTargetView failed: 0x{:08X}", (uint32_t)hr);
         m_renderTargetView = nullptr;
+        return;
+    }
+
+    m_missingRtvLogged = false;
+
+    // Only adopt the new size once the buffers really changed, otherwise the
+    // viewport would describe a back buffer that does not exist.
+    if (resized) {
+        m_width = width;
+        m_height = height;
+    } else {
+        logger->warn("SwapChainManager::Resize: viewport stays at {}x{}", m_width, m_height);
     }
 }
 
 void SwapChainManager::BeginFrame() {
+    if (!m_deviceCtx || !m_renderTargetView) {
+        if (!m_missingRtvLogged) {
+            logger->error("SwapChainManager::BeginFrame: no render target view, frames are skipped");
+            m_missingRtvLogged = true;
+        }
+        return;
+    }
+
     D3D11_VIEWPORT viewPort = {};
     viewPort.TopLeftX = 0;
     viewPort.TopLeftY = 0;
@@ -91,5 +129,6 @@ void SwapChainManager::BeginFrame() {
 }
 
 void SwapChainManager::EndFrame() {
+    if (!m_swapChain) return;
     m_swapChain->Present(1, 0);
 }

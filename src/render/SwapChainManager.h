@@ -24,6 +24,9 @@ private:
     ID3D11RenderTargetView* m_renderTargetView;
     int m_width;
     int m_height;
+    // BeginFrame runs once per frame; a missing view is reported once per outage
+    // instead of flooding the log while nothing can be drawn.
+    bool m_missingRtvLogged = false;
 };
 
 #endif
