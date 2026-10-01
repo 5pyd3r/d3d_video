@@ -31,8 +31,10 @@ void VideoController::SetSource(std::unique_ptr<IVideoSource> source) {
         m_frameCount = 0;
         m_startTime = std::chrono::steady_clock::now();
         m_lastSourceTitle = m_source->GetTitle();
-        m_state = PlayState::Play;
-        UpdatePowerOverride(true);
+        // A drag or a suspend still in flight keeps holding the new source.
+        m_state = (m_pauseReasons != 0) ? PlayState::Pause : PlayState::Play;
+        if (m_state == PlayState::Pause) m_pausedTime = std::chrono::steady_clock::now();
+        UpdatePowerOverride(m_state == PlayState::Play);
     } else if (source) {
         logger->error("SetSource: Init failed for '{}'", source->GetTitle());
     }
@@ -47,14 +49,27 @@ void VideoController::StopSource() {
     m_state = PlayState::Stop;
 }
 
-void VideoController::Pause() {
+void VideoController::Pause(PauseReason reason) {
+    const unsigned mask = ToPauseMask(reason);
+    if (m_pauseReasons & mask) return;  // this caller already holds playback
+
+    m_pauseReasons |= mask;
     if (m_state != PlayState::Play) return;
+
     m_pausedTime = std::chrono::steady_clock::now();
     m_state = PlayState::Pause;
 }
 
-void VideoController::Resume() {
+void VideoController::Resume(PauseReason reason) {
+    const unsigned mask = ToPauseMask(reason);
+    if (!(m_pauseReasons & mask)) return;  // this caller is not holding playback
+
+    m_pauseReasons &= ~mask;
+    // Only the last holder resumes, and only from Pause: an overlapping window drag
+    // must not restart a suspended player, and neither may revive a stopped one.
+    if (m_pauseReasons != 0) return;
     if (m_state != PlayState::Pause) return;
+
     m_startTime += std::chrono::steady_clock::now() - m_pausedTime;
     m_state = PlayState::Play;
 }
@@ -66,11 +81,11 @@ void VideoController::ResizeSwapChain(int width, int height) {
 }
 
 void VideoController::OnSystemSuspend() {
-    Pause();
+    Pause(PauseReason::SystemSuspend);
 }
 
 void VideoController::OnSystemResume() {
-    Resume();
+    Resume(PauseReason::SystemSuspend);
 }
 
 void VideoController::Draw(HWND hwnd) {
