@@ -82,3 +82,16 @@ test('SwapChainManager',
         # does not include that header, so the import libraries are declared here.
         link_args: ['-ld3d11', '-ldxgi'],
         dependencies: [gtest_dep, spdlog]))
+test('FileSource',
+    executable('test_file_source',
+        'source/FileSource_test.cpp',
+        '../src/source/FileSource.cpp',
+        '../src/source/MediaSource.cpp',
+        '../src/decode/VideoDecoder.cpp',
+        '../src/playback/TextureUpdater.cpp',
+        '../src/render/VideoQuad.cpp',
+        '../src/platform/StringUtils.cpp',
+        '../src/platform/Logger.cpp',
+        vshader, pshader, cpshader,
+        include_directories: include_directories('../src'),
+        dependencies: [gtest_dep, libavcodec, libavformat, libavutil, spdlog]))

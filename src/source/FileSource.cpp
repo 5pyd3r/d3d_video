@@ -10,6 +10,14 @@ extern "C" {
 #include <libavutil/frame.h>
 }
 
+namespace {
+// Upper bound on how many packets one ReadFrame() call may consume. Without it a
+// stream whose packets never yield a video frame (unsupported codec, damaged file,
+// audio-only file) is decoded to EOF inside a single call, and the message loop
+// that drives it stops responding for as long as that takes.
+constexpr int kMaxPacketsPerRead = 256;
+}  // namespace
+
 FileSource::FileSource(const char* path, ID3D11Device* d3dDevice)
     : m_path(path), m_d3dDevice(d3dDevice) {}
 
@@ -49,8 +57,20 @@ FrameResult FileSource::ReadFrame(VideoFrame& out, ID3D11DeviceContext* ctx, nv:
         }
     }
 
-    // Decode until we get a video frame or run out of packets
+    // Decode until we get a video frame, run out of packets, or spend the budget.
+    int packetsRead = 0;
     for (;;) {
+        if (packetsRead >= kMaxPacketsPerRead) {
+            // Reported once per source: this can repeat on every frame while a
+            // pathological file is drained, and the logger flushes on warn.
+            if (!m_budgetWarned) {
+                logger->warn("FileSource: '{}' consumed {} packets without a video frame, "
+                             "yielding to the message loop", m_title, packetsRead);
+                m_budgetWarned = true;
+            }
+            return FrameResult::NotReady;
+        }
+
         MediaSource::PacketStatus status = m_mediaSource.ReadPacket(m_packet);
         if (status != MediaSource::PacketStatus::Got) {
             if (status == MediaSource::PacketStatus::Error) {
@@ -65,6 +85,8 @@ FrameResult FileSource::ReadFrame(VideoFrame& out, ID3D11DeviceContext* ctx, nv:
             }
             return FrameResult::End;
         }
+
+        ++packetsRead;
 
         auto decoded = m_decoder.SendAndReceive(m_packet);
         av_packet_unref(m_packet);

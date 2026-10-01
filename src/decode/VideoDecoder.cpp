@@ -29,7 +29,16 @@ uint32_t VideoDecoder::Init(AVFormatContext* fmtCtx, double& avg_frame_rate, ID3
             }
             auto* vcodecCtx = avcodec_alloc_context3(codec);
             avcodec_parameters_to_context(vcodecCtx, theStream->codecpar);
-            avcodec_open2(vcodecCtx, codec, NULL);
+            // Registering a context that failed to open makes every packet of this
+            // stream fail inside SendAndReceive while the reader keeps consuming the
+            // file, so report it and leave the stream undecodable instead.
+            int videoOpenErr = avcodec_open2(vcodecCtx, codec, NULL);
+            if (videoOpenErr < 0) {
+                logger->error("VideoDecoder: avcodec_open2 failed for video stream {}: {}",
+                              i, videoOpenErr);
+                avcodec_free_context(&vcodecCtx);
+                continue;
+            }
             codecMap[i] = vcodecCtx;
 
             AVBufferRef* hw_device_ctx = nullptr;
@@ -59,7 +68,13 @@ uint32_t VideoDecoder::Init(AVFormatContext* fmtCtx, double& avg_frame_rate, ID3
         } else if (codec->type == AVMEDIA_TYPE_AUDIO) {
             auto* acodecCtx = avcodec_alloc_context3(codec);
             avcodec_parameters_to_context(acodecCtx, fmtCtx->streams[i]->codecpar);
-            avcodec_open2(acodecCtx, codec, NULL);
+            int audioOpenErr = avcodec_open2(acodecCtx, codec, NULL);
+            if (audioOpenErr < 0) {
+                logger->error("VideoDecoder: avcodec_open2 failed for audio stream {}: {}",
+                              i, audioOpenErr);
+                avcodec_free_context(&acodecCtx);
+                continue;
+            }
             codecMap[i] = acodecCtx;
         }
     }
